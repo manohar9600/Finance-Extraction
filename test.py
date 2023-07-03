@@ -1,13 +1,13 @@
-# from secedgar import FilingType, CompanyFilings
-# from datetime import date
+from secedgar import FilingType, CompanyFilings
+from datetime import date
 
-# filing = CompanyFilings(cik_lookup="aapl",
-#                         filing_type=FilingType.FILING_10K,
-#                         start_date=date(2015, 1, 1),
-#                         end_date=date(2019, 1, 1),
-#                         user_agent="Name (email)")
+filing = CompanyFilings(cik_lookup="aapl",
+                        filing_type=FilingType.FILING_10K,
+                        start_date=date(2015, 1, 1),
+                        end_date=date(2019, 1, 1),
+                        user_agent="Name (email)")
 
-# company_filings_urls = filing.get_urls()
+company_filings_urls = filing.get_urls()
 
 
 items_list = [

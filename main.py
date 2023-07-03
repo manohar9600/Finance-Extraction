@@ -1,48 +1,60 @@
-import fitz
-import openai
 import json
 import os
+import warnings
+from datetime import date, datetime
+
+warnings.filterwarnings("ignore")
+
+import requests
 from loguru import logger
+from secedgar import CompanyFilings, FilingType
+
+from tables import *
 
 
-openai.api_key = "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"
+def get_filing_urls(cik):
+    filing = CompanyFilings(cik_lookup=cik,
+                            filing_type=FilingType.FILING_10K,
+                            start_date=date(2018, 1, 1),
+                            end_date=datetime.now(),
+                            user_agent="Name (email)")
+
+    company_filings_urls = filing.get_urls()
+    return company_filings_urls[cik]
 
 
-def get_finance_pages(pdf_path):
-    MODEL = "gpt-3.5-turbo"
-    prompt = "Classify given text as BalanceSheet or IncomeStatement or Cashflow or None. don't explain."
-    system_msg = f"You are a helpful assistant. Help me find right type of content in this pdf page. {prompt}"
-
-    file_name = os.path.splitext(os.path.basename(pdf_path))[0]
-    final_output = {
-        'file': file_name,
-        'textblocks': []
+def download_company_files(cik):
+    headers = {
+       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36"
     }
-    doc = fitz.open(pdf_path)
-    for page in doc:
-        logger.info(f'processing page:{page.number+1}')
-        text = page.get_text()
-        
-        response = openai.ChatCompletion.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": text},
-            ],
-            temperature=0,
-        )
-        final_output['textblocks'].append({
-            'page': page.number+1,
-            'text': text,
-            'gptoutput': response['choices'][0]['message']['content']
-        })
-
-    doc.close()
-    return final_output
+    os.makedirs(f'data/{cik}', exist_ok=True)
+    filing_urls = get_filing_urls(cik)
+    for filing_url in filing_urls:
+        file_name = filing_url.split('/')[-1].replace('.txt', '')
+        file_path = f'data/{cik}/{file_name}.json'
+        if os.path.exists(file_path):
+            continue
+        logger.info(f"processing {filing_url}")
+        r = requests.get(filing_url, headers=headers)
+        if r.status_code == 200:
+            tables = get_html_tables(r.text)
+            tables = classify_tables(tables)
+            tables = construct_proper_tables(tables)
+            file_name = filing_url.split('/')[-1].replace('.txt', '')
+            file_path = f'data/{cik}/{file_name}.json'
+            data = {
+                'url': filing_url,
+                'tables': tables
+            }
+            with open(file_path, 'w') as f:
+                json.dump(data, f, indent=4)
+            with open(file_path.replace(".json", ".html"), 'w') as f:
+                f.write(r.text)
 
 
 if __name__ == "__main__":
-    output = get_finance_pages("PDFs/Amazon-2022-Annual-Report.pdf")
-    os.makedirs('data', exist_ok=True)
-    with open(f'data/{output["file"]}.json', 'w') as f:
-        json.dump(output, f, indent=4)
+    ciks = ['tsla']
+    for cik in ciks:
+        logger.info(f"processing company, cik:{cik}")
+        download_company_files(cik)
+        
