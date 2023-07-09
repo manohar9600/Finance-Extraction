@@ -2,3 +2,4 @@ data/*
 *.xlsx
 *.pyc
 *.json
+data*/*
