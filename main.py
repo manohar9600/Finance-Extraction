@@ -67,8 +67,7 @@ def download_company_files(cik):
 
 
 if __name__ == "__main__":
-    ciks = ['aapl']
-    # ciks = ['mmm', 'aos', 'abt', 'abbv', 'acn', 'atvi', 'adm']
+    ciks = ['mmm', 'aos', 'abt', 'abbv', 'acn', 'atvi', 'adm']
     for cik in ciks:
         logger.info(f"processing company, cik:{cik}")
         download_company_files(cik)

@@ -1,8 +1,6 @@
 import time
 import json
 import re
-
-import bs4
 import openai
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
@@ -18,7 +16,7 @@ def get_sections(html_content):
     html_lines = html_content.split('\n')
     html_splits = soup.find_all('hr')
     if len(html_splits) == 0:
-        return html_content
+        return [html_content]
     
     sections = []
     prev_line = 0
@@ -39,7 +37,7 @@ def get_sections(html_content):
         sec_html = html_lines[html_splits[i].sourceline-1][html_splits[i].sourcepos:]
         sec_html += "\n".join(html_lines[html_splits[i].sourceline:])
 
-    return sections       
+    return sections
 
 
 def get_html_tables(html_content):
@@ -52,7 +50,7 @@ def get_html_tables(html_content):
         for _t in soup.find_all('table'):
             _t.string = ''
         section_text = soup.get_text(strip=True)
-        matches = re.findall('Item \d{1}', section_text)
+        matches = re.findall('item \d{1}', section_text.lower())
         if matches:
             section = matches[-1]
         else:
@@ -71,16 +69,12 @@ def get_tables(html_content):
     tables = []
     for table in tables_html:
         previous_elements = []
-        prev_element = table.find_previous()
-        while prev_element:
-            if prev_element.name and len(prev_element.contents) == 1 and \
-                    type(prev_element.contents[0]) != bs4.element.Tag:
-                text = prev_element.get_text(strip=True)
-                if text and text not in previous_elements:
-                    previous_elements.append(text)
-                if len(previous_elements) == 15:
-                    break
-            prev_element = prev_element.find_previous()
+        for prev_element in table.find_all_previous(string = True, limit=50):
+            prev_element = prev_element.replace("\n", " ").replace("\t", " ").strip()
+            if prev_element:
+                previous_elements.append(prev_element)
+            if len(previous_elements) == 10: # limiting above text to 10 lines
+                break
         
         previous_elements.reverse()
         text = '\n'.join(previous_elements)
@@ -92,59 +86,6 @@ def get_tables(html_content):
             'body': [],
             'tableHTML': table.decode_contents()
         })
-    return tables
-
-
-
-def get_html_tables_old(html):
-    soup = BeautifulSoup(html, 'html.parser')
-    tables = []
-    # Find all tables and extract their data into separate sheets
-    previous_section = ''
-    tables_html = soup.find_all('table')
-    for table in tqdm(tables_html):
-        # Find the text above the table up to the <hr> tag
-        previous_elements = []
-        prev_element = table.find_previous()
-        while prev_element and prev_element.name != 'hr':
-            if prev_element.name and len(prev_element.contents) == 1 and \
-                    type(prev_element.contents[0]) != bs4.element.Tag:
-                text = prev_element.get_text(strip=True)
-                if text and text not in previous_elements:
-                    previous_elements.append(text)
-                if len(previous_elements) == 15:
-                    break
-            prev_element = prev_element.find_previous()
-
-        # Reverse the list to maintain the original order of text
-        previous_elements.reverse()
-
-        # Add the extracted text to the sheet
-        text = '\n'.join(previous_elements)
-
-        # Extract table data
-        table_rows = []
-        for row in table.find_all('tr'):
-            cells = row.find_all('td')
-            data = [cell.get_text(strip=True) for cell in cells]
-            table_rows.append(data)
-
-        section = re.search('Item \d{1}', text)
-        if section is not None:
-            section = section.group()
-        else:
-            section = previous_section
-        
-        tables.append({
-            'class': '',
-            'section': section,
-            'textAbove': text.strip(),
-            'header': [],
-            'body': [],
-            'tableHTML': table.decode_contents()
-        })
-
-        previous_section = section
     return tables
 
 
@@ -208,15 +149,20 @@ def get_table_chatgpt(table):
     text = f"{table_text}\n---\nextract table from this text. output in markdown format. just give me only table"
     system_msg = f"You are a helpful assistant."
     
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": text},
-        ],
-        temperature=0,
-    )
-    content = response['choices'][0]['message']['content']
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": text},
+            ],
+            temperature=0,
+        )
+        content = response['choices'][0]['message']['content']
+    except:
+        logger.info('failed to get response from openai api. sleeping for 5 secs')
+        time.sleep(5)
+        return get_table_chatgpt(table)
     return content
 
 
@@ -247,7 +193,7 @@ def save_to_excel(tables):
 
 if __name__ == "__main__":
     # Load the HTML file and create a BeautifulSoup object
-    with open(r'data\aos\0001193125-19-042339.html', 'r') as file:
+    with open(r'data\abt\000104746918000856\a2234264z10-k.htm', 'r') as file:
         html = file.read()
 
     tables = get_html_tables(html)
