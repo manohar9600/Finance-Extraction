@@ -90,18 +90,19 @@ def get_tables(html_content):
 
 
 def check_table_class(text):
-    prompt = "Is this contains financial statements heading. If yes, classify given text as BalanceSheet or IncomeStatement or Cashflow or None. don't explain."
-    system_msg = f"You are a helpful assistant. Help me find right type of content in this pdf page. {prompt}"
+    prompt = "Please classify the provided text into the appropriate financial statement category (Balance Sheet, Cash Flow, Income Statement, or Others) based on the heading present in the text. Just output the category. don't explain."
+    system_msg = f"You are a helpful assistant."
     
-    text = text.replace('\n', ' ')
+    # text = text.replace('\n', ' ')
+    text = text + "---\n" + prompt
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": text},
             ],
-            temperature=0,
+            temperature=0.5,
         )
         cls = response['choices'][0]['message']['content'].lower().replace(' ', '')
         if cls in ['balancesheet', 'incomestatement', 'cashflow']:
@@ -111,6 +112,35 @@ def check_table_class(text):
         time.sleep(5)
         return check_table_class(text)
     return ''
+
+
+
+def fix_table_classification(tables):
+    def fix_table_class(cls, text):
+        system_msg = "You are a helpful assistant."
+        text = text + f"---\nis this {cls} heading or not."
+        # text = text.replace('\n', ' ')
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": text},
+                ],
+                temperature=0.1,
+            )
+            if 'yes' in response['choices'][0]['message']['content'].lower()[:5]:
+                return cls
+        except:
+            logger.info('failed to get response from openai api. sleeping for 5 secs')
+            time.sleep(5)
+            return fix_table_class(cls, text)
+        return ''
+    
+    for table in tables:
+        if table['class']:
+            table['class'] = fix_table_class(table['class'], table['textAbove'])
+    return tables
 
 
 def classify_tables(tables):
