@@ -114,7 +114,6 @@ def check_table_class(text):
     return ''
 
 
-
 def fix_table_classification(tables):
     def fix_table_class(cls, text):
         system_msg = "You are a helpful assistant."
