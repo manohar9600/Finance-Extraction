@@ -10,6 +10,7 @@ class AllHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+        self.set_header("Access-Control-Allow-Headers", "Content-Type")
         self.set_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
 
     def options(self):
@@ -33,6 +34,7 @@ class Metadata(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
         self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+        self.set_header("Access-Control-Allow-Headers", "Content-Type")
         self.set_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
 
     def options(self):
@@ -55,7 +57,7 @@ class Metadata(tornado.web.RequestHandler):
                 "cover": "https://images.unsplash.com/photo-1560179707-f14e90ef3623"
             }
 
-        metadata['files'] = [os.path.basename(p) for p in glob(os.path.join(folder_path, '*'))]
+        metadata['files'] = [os.path.basename(p) for p in glob(os.path.join(folder_path, '*')) if os.path.isdir(p)]
         
         self.set_header('Content-Type', 'application/json')
         self.write(metadata)
