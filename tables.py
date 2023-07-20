@@ -104,8 +104,8 @@ def check_table_class(text):
             ],
             temperature=0.5,
         )
-        cls = response['choices'][0]['message']['content'].lower().replace(' ', '')
-        if cls in ['balancesheet', 'incomestatement', 'cashflow']:
+        cls = response['choices'][0]['message']['content'].lower()
+        if cls in ['balance sheet', 'income statement', 'cash flow']:
             return cls
     except:
         logger.info('failed to get response from openai api. sleeping for 5 secs')
@@ -136,7 +136,7 @@ def fix_table_classification(tables):
             return fix_table_class(cls, text)
         return ''
     
-    for table in tables:
+    for table in tqdm(tables):
         if table['class']:
             table['class'] = fix_table_class(table['class'], table['textAbove'])
     return tables

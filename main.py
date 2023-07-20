@@ -57,8 +57,8 @@ def download_company_files(cik):
         report_html = download_file(html_master + "/" + links[0]['href'], folder_path)
         tables = get_html_tables(report_html)
         tables = classify_tables(tables)
-        tables = construct_proper_tables(tables)
         tables = fix_table_classification(tables)
+        tables = construct_proper_tables(tables)
 
         data = {
             'url': filing_url,
@@ -68,7 +68,7 @@ def download_company_files(cik):
             json.dump(data, f, indent=4)
 
 if __name__ == "__main__":
-    ciks = ['aapl', 'aos', 'abbv', 'acn', 'atvi', 'adm']
+    ciks = ['adbe', 'adb', 'aap', 'aes', 'afl', 'a', 'apd', 'akam', 'alk', 'alb']
     for cik in ciks:
         logger.info(f"processing company, cik:{cik}")
         download_company_files(cik)
