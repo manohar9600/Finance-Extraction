@@ -90,11 +90,13 @@ def get_tables(html_content):
 
 
 def check_table_class(text):
-    prompt = "Please classify the provided text into the appropriate financial statement category (Balance Sheet, Cash Flow, Income Statement, or Others) based on the heading present in the text. Just output the category. don't explain."
+    if "notes to" in text.lower():
+        return ""
+    prompt = "does this heading belongs to any three important financial statements (Balance Sheet, Cash Flow, Income Statement). output none if it does not belong to any. Just output the category. don't explain."
     system_msg = f"You are a helpful assistant."
     
     # text = text.replace('\n', ' ')
-    text = text + "---\n" + prompt
+    text = f'heading: "{text}"\n {prompt}'
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -102,7 +104,7 @@ def check_table_class(text):
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": text},
             ],
-            temperature=0.5,
+            temperature=0.2,
         )
         cls = response['choices'][0]['message']['content'].lower()
         if cls in ['balance sheet', 'income statement', 'cash flow']:
@@ -114,28 +116,34 @@ def check_table_class(text):
     return ''
 
 
-def fix_table_classification(tables):
-    def fix_table_class(cls, text):
-        system_msg = "You are a helpful assistant."
-        text = text + f"---\nis this {cls} heading or not."
-        # text = text.replace('\n', ' ')
-        try:
+def fix_table_class(cls, text):
+    system_msg = f"Given a text, determine whether it represents the title of the {cls} or not."
+    # text = text + f"\n---\nis this title of {cls}. tell me yes or no."
+    prompt = f'Text: "{text}"\n Is given text contains title of the {cls}?. tell me yes or no.'
+    # text = text.replace('\n', ' ')
+    try:
+        count = 0
+        for _ in range(3):
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": system_msg},
-                    {"role": "user", "content": text},
+                    {"role": "user", "content": prompt},
                 ],
-                temperature=0.1,
+                temperature=1,
             )
             if 'yes' in response['choices'][0]['message']['content'].lower()[:5]:
-                return cls
-        except:
-            logger.info('failed to get response from openai api. sleeping for 5 secs')
-            time.sleep(5)
-            return fix_table_class(cls, text)
-        return ''
-    
+                count += 1
+        if count == 3:
+            return cls
+    except:
+        logger.info('failed to get response from openai api. sleeping for 5 secs')
+        time.sleep(5)
+        return fix_table_class(cls, text)
+    return ''
+
+
+def fix_table_classification(tables):
     for table in tqdm(tables):
         if table['class']:
             table['class'] = fix_table_class(table['class'], table['textAbove'])
@@ -143,95 +151,28 @@ def fix_table_classification(tables):
 
 
 def classify_tables(tables):
-    item8_exists = False
-    for table in tables:
-        if table['section'].lower() == 'item 8':
-            item8_exists = True
-    if not item8_exists:
-        logger.info("Item 8 failed, falling to full classification")
-    for table in tqdm(tables):
-        # for sec documents, item 8 will have financial tables.
-        if table['section'].lower() != 'item 8' and item8_exists:
-            continue
+    for i, table in enumerate(tqdm(tables)):
         if table['tableHTML'].count('</tr>') < 10:
+            continue
+        # temporary fix for comprehensive income getting detected as income statement.
+        if i > 0 and tables[i-1]['class'] == 'income statement' and 'comprehensive income' in table['textAbove'].lower():
             continue
         table['class'] = check_table_class(table['textAbove'][-500:])
     return tables
 
 
-def construct_proper_tables(tables):
-    for table in tqdm(tables):
-        if not table['class']:
-            continue
-        
-        markdown_table = get_table_chatgpt(table)
-        markdown_table = markdown_table.replace("**", "")
-        rows = markdown_table.strip().split('\n')
-        table['header'] = [cell.strip() for cell in rows[0].split('|')[1:-1]]
-        table['body'] = [list(map(str.strip, row.split('|')[1:-1])) for row in rows[2:]]
-    return tables
-    
-
-def get_table_chatgpt(table):
-    soup = BeautifulSoup(table['tableHTML'], 'html.parser')
-    table_text = soup.get_text(separator=" ")
-    text = f"{table_text}\n---\nextract table from this text. output in markdown format. just give me only table"
-    system_msg = f"You are a helpful assistant."
-    
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": text},
-            ],
-            temperature=0,
-        )
-        content = response['choices'][0]['message']['content']
-    except:
-        logger.info('failed to get response from openai api. sleeping for 5 secs')
-        time.sleep(5)
-        return get_table_chatgpt(table)
-    return content
-
-
-def save_to_excel(tables):
-    # Create a new workbook
-    workbook = Workbook()
-    for i, table in enumerate(tables, start=1):
-        if not len(table['class']):
-            continue
-        
-        sheet = workbook.create_sheet(title=f"Table {i}")
-
-        sheet['A1'] = table['class']
-        for row in table['table']:
-            sheet.append(row)
-        
-        # Remove the sheet if the table is empty
-        if sheet.max_row == 1:
-            workbook.remove(sheet)
-        
-
-    # Remove the default sheet created by Workbook()
-    workbook.remove(workbook['Sheet'])
-
-    # # Save the workbook to an Excel file
-    workbook.save('output.xlsx')
-
-
 if __name__ == "__main__":
-    # Load the HTML file and create a BeautifulSoup object
-    with open(r'data\abt\000104746918000856\a2234264z10-k.htm', 'r') as file:
-        html = file.read()
+    # # Load the HTML file and create a BeautifulSoup object
+    # with open(r'data\abt\000104746918000856\a2234264z10-k.htm', 'r') as file:
+    #     html = file.read()
 
-    tables = get_html_tables(html)
-    # tables = classify_tables(tables)
-    # tables = construct_proper_tables(tables)
+    # tables = get_html_tables(html)
+    # # tables = classify_tables(tables)
+    # # tables = construct_proper_tables(tables)
 
-    with open('debug.json', 'w') as f:
-        json.dump(tables, f, indent=4)
+    # with open('debug.json', 'w') as f:
+    #     json.dump(tables, f, indent=4)
 
-    # save_to_excel(tables)
+    fix_table_class("income statement", "Impacts to\n2017\nResults\nThe effects of the adoption of the New Revenue Standard and New Retirement Standard to our consolidated statement of operations for the\ntwelve\nmonths ended\nDecember\u00a031, 2017\nwere as follows (in millions):")
     print('done')
 
