@@ -10,7 +10,7 @@ import requests
 from loguru import logger
 from secedgar import CompanyFilings, FilingType
 
-from tables import *
+from classification import *
 from extraction.tables import construct_tables
 
 
@@ -81,7 +81,7 @@ def reprocess_file(table_json_path):
 
     tables = data['tables']
     tables = classify_tables(tables)
-    tables = fix_table_classification(tables)
+    # tables = fix_table_classification(tables)
     tables = construct_tables(tables)
     data['tables'] = tables    
 

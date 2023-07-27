@@ -154,25 +154,57 @@ def classify_tables(tables):
     for i, table in enumerate(tqdm(tables)):
         if table['tableHTML'].count('</tr>') < 10:
             continue
-        # temporary fix for comprehensive income getting detected as income statement.
-        if i > 0 and tables[i-1]['class'] == 'income statement' and 'comprehensive income' in table['textAbove'].lower():
-            continue
-        table['class'] = check_table_class(table['textAbove'][-500:])
+        # # temporary fix for comprehensive income getting detected as income statement.
+        # if i > 0 and tables[i-1]['class'] == 'income statement' and 'comprehensive income' in table['textAbove'].lower():
+        #     continue
+        table['class'] = get_table_class(table['textAbove'][-500:])
     return tables
+
+def get_chatgpt_response(prompt):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are finanacial analyst. Respond to requests with good accuracy."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=1,
+        )
+        cls = response['choices'][0]['message']['content'].lower()
+        return cls
+    except:
+        time_sleep = 2
+        logger.info(f'failed to get response from openai api. sleeping for {time_sleep} secs')
+        time.sleep(time_sleep)
+        return get_chatgpt_response(prompt)
+
+def get_davinci_response(prompt):
+    response = openai.Completion.create(
+        model="text-davinci-003",
+        prompt=prompt,
+        temperature=0,
+        max_tokens=54,
+        top_p=0,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    return response['choices'][0]['text'].lower()
+
+def get_table_class(text):
+    prompt = f'text: "{text}"\ndoes this text belongs to any top3 financial statements?. return yes or no'
+    top3_boolean = get_davinci_response(prompt)
+    if 'no' in top3_boolean[:5]:
+        return ''
+
+    prompt = f'text: "{text}" to which class this text belongs. classes: balance sheet, cash flow, income statement. just return the class without explanation.'
+    cls = get_chatgpt_response(prompt)
+    if cls in ['balance sheet', 'income statement', 'cash flow']:
+        return cls
+    return ''
 
 
 if __name__ == "__main__":
-    # # Load the HTML file and create a BeautifulSoup object
-    # with open(r'data\abt\000104746918000856\a2234264z10-k.htm', 'r') as file:
-    #     html = file.read()
-
-    # tables = get_html_tables(html)
-    # # tables = classify_tables(tables)
-    # # tables = construct_proper_tables(tables)
-
-    # with open('debug.json', 'w') as f:
-    #     json.dump(tables, f, indent=4)
-
-    fix_table_class("income statement", "Impacts to\n2017\nResults\nThe effects of the adoption of the New Revenue Standard and New Retirement Standard to our consolidated statement of operations for the\ntwelve\nmonths ended\nDecember\u00a031, 2017\nwere as follows (in millions):")
-    print('done')
+    for i in range(3):
+        cls = get_table_class("Table of Contents\nAdvance Auto Parts, Inc. and Subsidiaries\nConsolidated Balance Sheets\n(in thousands, except per share data)")
+        print(cls)
 
