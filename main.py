@@ -151,6 +151,8 @@ if __name__ == "__main__":
     #     reprocess_company_files(cik)
     # reprocess_company_files('AAP')
     # reprocess_file(r"data\aap\000115844918000039\tables.json")
-    tables = process_finance_excel(r"data\aapl\000032019320000096\Financial_Report.xlsx")
-    with open("debug.json", "w") as f:
-        json.dump(tables, f, indent=4)
+    for file in glob("data/aapl/*/Financial_Report.xlsx"):
+        logger.info(f"processing file:{file}")
+        tables = process_finance_excel(file)
+        with open(file.replace("Financial_Report.xlsx", "tables.json"), "w") as f:
+            json.dump({"tables": tables}, f, indent=4)

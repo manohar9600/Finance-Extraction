@@ -188,6 +188,7 @@ def get_table_class(text):
     if 'no' in top3_boolean[:5]:
         return ''
 
+    time.sleep(1)
     prompt = f'text: "{text}" to which class this text belongs. classes: balance sheet, cash flow, income statement. just return the class without explanation.'
     cls = get_chatgpt_response(prompt)
     if cls in ['balance sheet', 'income statement', 'cash flow']:
