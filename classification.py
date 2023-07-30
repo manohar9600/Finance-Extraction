@@ -160,15 +160,16 @@ def classify_tables(tables):
         table['class'] = get_table_class(table['textAbove'][-500:])
     return tables
 
+
 def get_chatgpt_response(prompt):
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are finanacial analyst. Respond to requests with good accuracy."},
+                {"role": "system", "content": "You are helpful assistant."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=1,
+            temperature=0,
         )
         cls = response['choices'][0]['message']['content'].lower()
         return cls
@@ -178,21 +179,12 @@ def get_chatgpt_response(prompt):
         time.sleep(time_sleep)
         return get_chatgpt_response(prompt)
 
-def get_davinci_response(prompt):
-    response = openai.Completion.create(
-        model="text-davinci-003",
-        prompt=prompt,
-        temperature=0,
-        max_tokens=54,
-        top_p=0,
-        frequency_penalty=0,
-        presence_penalty=0
-    )
-    return response['choices'][0]['text'].lower()
 
 def get_table_class(text):
+    if 'comprehensive income' in text.lower() or 'shareholders' in text.lower():
+        return ''
     prompt = f'text: "{text}"\ndoes this text belongs to any top3 financial statements?. return yes or no'
-    top3_boolean = get_davinci_response(prompt)
+    top3_boolean = get_chatgpt_response(prompt)
     if 'no' in top3_boolean[:5]:
         return ''
 
@@ -205,6 +197,6 @@ def get_table_class(text):
 
 if __name__ == "__main__":
     for i in range(3):
-        cls = get_table_class("Table of Contents\nAdvance Auto Parts, Inc. and Subsidiaries\nConsolidated Balance Sheets\n(in thousands, except per share data)")
+        cls = get_table_class("CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME - USD ($) $ in Millions")
         print(cls)
 
