@@ -11,7 +11,7 @@ from loguru import logger
 from secedgar import CompanyFilings, FilingType
 
 from classification import *
-from extraction.tables import construct_tables
+from extraction.tables import *
 import openpyxl
 
 
@@ -93,29 +93,36 @@ def reprocess_file(table_json_path):
 
 ######################## - Excel code - ######################
 def process_finance_excel(excel_path):
+    logger.info(f"processing file:{excel_path}")
     workbook = openpyxl.load_workbook(excel_path)
     tables = []
-    for sheet_name in tqdm(workbook.sheetnames[:10]):
+    for sheet_name in tqdm(workbook.sheetnames[:20]):
         sheet = workbook[sheet_name]
         table = []
         for row in sheet.iter_rows(min_row=1, max_row=sheet.max_row):
             table_row = []
+            # ignoring foot note strings.
+            if row[0].value is not None and re.search("^(\[\d{1,}\](,|\s{1,})?){1,}$", str(row[0].value).strip()):
+                continue
             for cell in row:
                 cell_value = cell.value
                 if type(cell) == openpyxl.cell.MergedCell:
                     cell_value = find_merged_cell_value(sheet, cell.row, cell.column)
-                if cell_value is None:
+                if cell_value is None or \
+                        re.search("^(\[\d{1,}\](,|\s{1,})?){1,}$", str(cell_value).strip()): # for detecting footnote numbers
                     cell_value = ''
-                table_row.append(cell_value)
+                table_row.append(str(cell_value))
             table.append(table_row)
         tables.append(get_final_table_obj(sheet, table))
+    
     return tables
+
 
 def get_final_table_obj(sheet, table):
     col_index = 1
     for range_ in sheet.merged_cells.ranges:
         if (1, 1) in range_.left:
-            col_index = range_.max_col + 1
+            col_index = range_.max_row
             break
     
     columns = ["" for _ in range(len(table[0]))]
@@ -124,14 +131,18 @@ def get_final_table_obj(sheet, table):
             columns[i] = columns[i] + " " + row[i]
     for i in range(len(columns)):
         columns[i] = columns[i].strip()
+    table_body = drop_footnote_strings(table[col_index:])
+    table_body = drop_empty_rows(table[col_index:])
+    table_body, columns = drop_empty_columns(table_body, columns)
 
     table_object = {
         "title": table[0][0],
         "class": get_table_class(table[0][0]),
-        "columns": columns,
-        "body": table[col_index:]
+        "header": columns,
+        "body": table_body
     }
     return table_object
+
 
 def find_merged_cell_value(sheet, row, column):
     for range_ in sheet.merged_cells.ranges:
@@ -151,8 +162,20 @@ if __name__ == "__main__":
     #     reprocess_company_files(cik)
     # reprocess_company_files('AAP')
     # reprocess_file(r"data\aap\000115844918000039\tables.json")
-    for file in glob("data/aapl/*/Financial_Report.xlsx"):
-        logger.info(f"processing file:{file}")
+    paths = glob("data/*/*/Financial_Report.xlsx")
+    # paths = [r"data\AAL\000000620123000018\Financial_Report.xlsx"]
+    for file in paths:
+        json_path = file.replace("Financial_Report.xlsx", "tables.json")
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+        
         tables = process_finance_excel(file)
-        with open(file.replace("Financial_Report.xlsx", "tables.json"), "w") as f:
-            json.dump({"tables": tables}, f, indent=4)
+        data['tables'] = tables
+
+        # for table in data['tables']:
+        #     if 'per common share' in table['title'].lower():
+        #         table['class'] = ""
+        #     table['body'] = drop_empty_rows(table['body'])
+
+        with open(json_path, "w") as f:
+            json.dump(data, f, indent=4)

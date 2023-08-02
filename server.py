@@ -85,7 +85,8 @@ class FileHandler(tornado.web.RequestHandler):
         f_tables = []
         for table in tables:
             if table['class']:
-                table.pop('tableHTML')
+                if 'tableHTML' in table:
+                    table.pop('tableHTML')
                 f_tables.append(table)
 
         self.set_header('Content-Type', 'application/json')

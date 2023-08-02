@@ -12,6 +12,7 @@ def construct_tables(tables):
         table['header'], table['body'] = extract_table_from_html(table['tableHTML'])
     return tables
 
+
 def extract_table_from_html(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
     rows = soup.find_all('tr')
@@ -37,6 +38,7 @@ def extract_table_from_html(html_content):
 
     return cols_text, table_data
 
+
 def get_coumn_text(columns):
     if len(columns) == 0:
         return []
@@ -47,6 +49,7 @@ def get_coumn_text(columns):
     for i in range(len(cols_text)):
         cols_text[i] = cols_text[i].strip()
     return cols_text
+
 
 def drop_unwanted_columns(table):
     columns = [[] for _ in range(len(table[0]))]
@@ -81,6 +84,7 @@ def drop_unwanted_columns(table):
 
     return header, new_table
 
+
 def merge_columns(column_lst, column2):
     if len(column_lst) == 0:
         return [column2]
@@ -99,6 +103,7 @@ def merge_columns(column_lst, column2):
     else:
         column_lst.append(column2)
     return column_lst
+
 
 def get_column_indices(columns):
     num_cols = []
@@ -126,6 +131,44 @@ def get_column_indices(columns):
     
     col_ind = most_occuring_element(col_indices)[0]
     return col_ind
+
+
+def drop_empty_columns(table, columns):
+    empty_col_indices = []
+    for j in range(len(table[0])):
+        text = "".join([r[j] for r in table])
+        if len(text.strip()) == 0:
+            empty_col_indices.append(j)
+
+    for j in reversed(empty_col_indices):
+        for row in table:
+            del(row[j])
+        del(columns[j])
+    return table, columns
+
+
+def drop_footnote_strings(table):
+    # this is applicable for only excel tables.
+    footnote_indices = []
+    for i in range(len(table)-1, -1, -1):
+        if re.search("^(\[\d{1,}\](,|\s{1,})?){1,}", table[i][0].strip()):
+            footnote_indices.append(i)
+        elif table[i][0].strip():
+            break
+    for i in footnote_indices:
+        del(table[i])
+    return table
+
+def drop_empty_rows(table):
+    # this is applicable for only excel tables.
+    empty_row_indices = []
+    for i in range(len(table)-1, -1, -1):
+        text = "".join(table[i])
+        if len(text.strip()) == 0:
+            empty_row_indices.append(i)
+    for i in empty_row_indices:
+        del(table[i])
+    return table
 
 
 if __name__ == "__main__":

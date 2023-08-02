@@ -181,7 +181,9 @@ def get_chatgpt_response(prompt):
 
 
 def get_table_class(text):
-    if 'comprehensive income' in text.lower() or 'shareholders' in text.lower():
+    if 'comprehensive income' in text.lower() or 'shareholders' in text.lower() or \
+            'stockholders' in text.lower() or 'equity' in text.lower() or \
+            'per common share' in text.lower():
         return ''
     prompt = f'text: "{text}"\ndoes this text belongs to any top3 financial statements?. return yes or no'
     top3_boolean = get_chatgpt_response(prompt)
