@@ -166,7 +166,7 @@ def get_chatgpt_response(prompt):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are helpful assistant."},
+                {"role": "system", "content": "You are helpful assistant. Respond to requests with high accuracy."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
@@ -181,11 +181,13 @@ def get_chatgpt_response(prompt):
 
 
 def get_table_class(text):
-    if 'comprehensive income' in text.lower() or 'shareholders' in text.lower() or \
-            'stockholders' in text.lower() or 'equity' in text.lower() or \
-            'per common share' in text.lower():
-        return ''
-    prompt = f'text: "{text}"\ndoes this text belongs to any top3 financial statements?. return yes or no'
+    neg_terms = ['comprehensive income', 'shareholders', 'stockholders', 'equity', 
+                 'per common share', 'property and plant', 'parenthetical']
+    for term in neg_terms:
+        if term in text.lower():
+            return ''
+        
+    prompt = f'text: "{text}"\ndoes this text is heading of any top3 financial statement tables?. return yes or no'
     top3_boolean = get_chatgpt_response(prompt)
     if 'no' in top3_boolean[:5]:
         return ''
@@ -200,6 +202,6 @@ def get_table_class(text):
 
 if __name__ == "__main__":
     for i in range(3):
-        cls = get_table_class("CONSOLIDATED STATEMENTS OF COMPREHENSIVE INCOME - USD ($) $ in Millions")
+        cls = get_table_class("Consolidated Balance Sheets - USD ($) $ in Millions")
         print(cls)
 

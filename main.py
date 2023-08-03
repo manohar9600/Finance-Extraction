@@ -132,7 +132,7 @@ def get_final_table_obj(sheet, table):
     for i in range(len(columns)):
         columns[i] = columns[i].strip()
     table_body = drop_footnote_strings(table[col_index:])
-    table_body = drop_empty_rows(table[col_index:])
+    table_body = drop_empty_rows(table_body)
     table_body, columns = drop_empty_columns(table_body, columns)
 
     table_object = {
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     # reprocess_company_files('AAP')
     # reprocess_file(r"data\aap\000115844918000039\tables.json")
     paths = glob("data/*/*/Financial_Report.xlsx")
-    # paths = [r"data\AAL\000000620123000018\Financial_Report.xlsx"]
+    paths = [r"data\AEP\000000490423000011\Financial_Report.xlsx"]
     for file in paths:
         json_path = file.replace("Financial_Report.xlsx", "tables.json")
         with open(json_path, 'r') as f:
@@ -173,9 +173,9 @@ if __name__ == "__main__":
         data['tables'] = tables
 
         # for table in data['tables']:
-        #     if 'per common share' in table['title'].lower():
+        #     if 'financing activities' in table['title'].lower():
         #         table['class'] = ""
-        #     table['body'] = drop_empty_rows(table['body'])
+            # table['body'] = drop_empty_rows(table['body'])
 
         with open(json_path, "w") as f:
             json.dump(data, f, indent=4)
