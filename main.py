@@ -93,7 +93,6 @@ def reprocess_file(table_json_path):
 
 ######################## - Excel code - ######################
 def process_finance_excel(excel_path):
-    logger.info(f"processing file:{excel_path}")
     workbook = openpyxl.load_workbook(excel_path)
     tables = []
     for sheet_name in tqdm(workbook.sheetnames[:20]):
@@ -162,18 +161,18 @@ if __name__ == "__main__":
     #     reprocess_company_files(cik)
     # reprocess_company_files('AAP')
     # reprocess_file(r"data\aap\000115844918000039\tables.json")
-    paths = glob("data/*/*/Financial_Report.xlsx")
-    paths = [r"data\AEP\000000490423000011\Financial_Report.xlsx"]
+    paths = glob("data/apd/*/Financial_Report.xlsx")
+    paths = [r"data\AXP\000000496223000006\Financial_Report.xlsx"]
     for file in paths:
         json_path = file.replace("Financial_Report.xlsx", "tables.json")
         with open(json_path, 'r') as f:
             data = json.load(f)
-        
+        logger.info(f"processing file:{file}")
         tables = process_finance_excel(file)
         data['tables'] = tables
 
         # for table in data['tables']:
-        #     if 'financing activities' in table['title'].lower():
+        #     if 'Discontinued Operations' in table['title']:
         #         table['class'] = ""
             # table['body'] = drop_empty_rows(table['body'])
 

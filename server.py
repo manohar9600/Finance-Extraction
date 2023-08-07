@@ -6,6 +6,7 @@ from glob import glob
 from loguru import logger
 
 
+master_folder = 'data'
 class AllHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -23,7 +24,7 @@ class AllHandler(tornado.web.RequestHandler):
         logger.info("--- intial request received ---")
 
         data = {
-            "companies": [os.path.basename(p) for p in glob("data/*")]
+            "companies": [os.path.basename(p) for p in glob(f"{master_folder}/*")]
         }
 
         self.set_header('Content-Type', 'application/json')
@@ -46,7 +47,7 @@ class Metadata(tornado.web.RequestHandler):
     def post(self):
         logger.info("--- company meta request received ---")
         data = json.loads(self.request.body)
-        folder_path = os.path.join('data', data['company'])
+        folder_path = os.path.join(master_folder, data['company'])
         file_path = os.path.join(folder_path, 'metadata.json')
         if os.path.exists(file_path):
             with open(file_path, 'r') as file:
@@ -78,7 +79,7 @@ class FileHandler(tornado.web.RequestHandler):
     def post(self):
         logger.info("--- file request received ---")
         data = json.loads(self.request.body)
-        file_path = os.path.join('data', data['company'], data['file'], 'tables.json')
+        file_path = os.path.join(master_folder, data['company'], data['file'], 'tables.json')
         with open(file_path, 'r') as file:
             tables = json.load(file)['tables']
 

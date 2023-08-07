@@ -166,7 +166,7 @@ def get_chatgpt_response(prompt):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are helpful assistant. Respond to requests with high accuracy."},
+                {"role": "system", "content": "You are helpful assistant."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
@@ -181,8 +181,8 @@ def get_chatgpt_response(prompt):
 
 
 def get_table_class(text):
-    neg_terms = ['comprehensive income', 'shareholders', 'stockholders', 'equity', 
-                 'per common share', 'property and plant', 'parenthetical']
+    neg_terms = ['comprehensive', 'shareholders', 'stockholders', 'equity', 
+                 'per common share', 'property', 'parenthetical', 'discontinued operations', 'plant and equipment']
     for term in neg_terms:
         if term in text.lower():
             return ''
@@ -202,6 +202,6 @@ def get_table_class(text):
 
 if __name__ == "__main__":
     for i in range(3):
-        cls = get_table_class("Consolidated Balance Sheets - USD ($) $ in Millions")
+        cls = get_table_class("Consolidated Statements of Earnings - USD ($) shares in Thousands, $ in Millions")
         print(cls)
 
