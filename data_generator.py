@@ -1,3 +1,4 @@
+# this file generates tags for each top3 table. by matching values from yahoo finance
 import json
 import re
 import pandas as pd
@@ -54,6 +55,7 @@ def get_tag_information(table, timeseries_table):
     table['header'] = table['header'][:1] + ['Tag'] + table['header'][1:]
     table['body'] = new_table_body
     return table
+
 
 def get_tag(timeseries_table, timeseries_table_index, val_lst, variable):
     def clean_extra_zero(num):
