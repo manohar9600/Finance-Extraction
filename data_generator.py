@@ -3,16 +3,18 @@ import json
 import re
 import pandas as pd
 from tqdm import tqdm
+import openpyxl
+from utils import write_to_excel
 import extraction.gpt_functions as gpt_fns
 
 
 def process(json_path, timeseries_path):
     tagged_tables = []
-    with open(json_path, "r") as f:
-        data = json.load(f)
-    for table in data['tables']:
+    tables = get_present_tagged_data(json_path)
+    for table in tables:
         if not table['class']:
             continue
+        table['header'][0] = table['title']
         timeseries_table = pd.read_excel(timeseries_path, sheet_name=table['class'])
         timeseries_table = filter_tags(timeseries_table, table['class'])
         table = assign_tag_information(table, timeseries_table)
@@ -23,12 +25,34 @@ def process(json_path, timeseries_path):
         return
     
     excel_path = json_path.replace("tables.json", "tagged_tables.xlsx")
-    with pd.ExcelWriter(excel_path) as excel_writer:
-        for i, table in enumerate(tagged_tables):
-            df = pd.DataFrame(table['body'])
-            df.columns = table['header']
-            df.to_excel(excel_writer, sheet_name=str(i) + "_" + table['class'], index=False)
+    write_to_excel(tagged_tables, excel_path)
     return tagged_tables
+
+
+def get_present_tagged_data(json_path):
+    tables = []
+    excel_path = json_path.replace("tables.json", "tagged_tables.xlsx")
+    if os.path.exists(excel_path):
+        workbook = openpyxl.load_workbook(excel_path)
+        for t_name in workbook.sheetnames:
+            table = {}
+            df = pd.read_excel(excel_path, sheet_name=t_name)
+            table['title'] = df.columns.tolist()[0]
+            table['class'] = t_name.split("_")[-1]
+            table['header'] = df.columns.tolist()
+            table['body'] = df.values.tolist()
+            tables.append(table)
+    else:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+        tables = data['tables']
+        for table in tables:
+            new_table_body = []
+            for row in table['body']:
+                new_table_body.append(row[:1] + [""] + row[1:])
+            table['header'] = table['header'][:1] + ['Tag'] + table['header'][1:]
+            table['body'] = new_table_body
+    return tables
 
 
 def assign_tag_information(table, timeseries_table):
@@ -40,18 +64,21 @@ def assign_tag_information(table, timeseries_table):
             break
     else:
         return None
-    new_table_body = []
+    # new_table_body = []
     for i, row in enumerate(tqdm(table['body'], desc=table['class'], leave=False)):
         val = str(row[index])
         if not val or val == "0" or val == "0.0":
-            new_table_body.append(row[:1] + [""] + row[1:])
+            # new_table_body.append(row[:1] + [""] + row[1:])
+            continue
+        if not pd.isna(row[1]) and len(row[1]) != 0: # ignoring already tagged variables.
             continue
         normalized_val = get_normalized_value(val, table['title'])
         tag, timeseries_table = get_tag(timeseries_table, timeseries_table_index, 
                       [normalized_val, val], row[0])
-        new_table_body.append(row[:1] + [tag] + row[1:])
-    table['header'] = table['header'][:1] + ['Tag'] + table['header'][1:]
-    table['body'] = new_table_body
+        row[1] = tag
+        # new_table_body.append(row[:1] + [tag] + row[1:])
+    # table['header'] = table['header'][:1] + ['Tag'] + table['header'][1:]
+    # table['body'] = new_table_body
     return table
 
 
@@ -140,7 +167,7 @@ if __name__ == "__main__":
     from glob import glob
     from utils import *
     paths = list(glob("data/current/*/*/tables.json"))
-    # paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844921000036\\tables.json"]
+    paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844921000036\\tables.json"]
     for json_path in paths:
         if "timeseries" in json_path:
             continue
