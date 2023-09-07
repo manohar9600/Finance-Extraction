@@ -5,3 +5,4 @@ data/*
 data*/*
 benchmark*/*
 archive/*
+lightning_logs

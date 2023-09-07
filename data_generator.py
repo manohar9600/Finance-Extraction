@@ -6,10 +6,7 @@ from tqdm import tqdm
 import extraction.gpt_functions as gpt_fns
 
 
-tags_to_ignore = ["Reconciled Cost Of Revenue"]
-
-
-def assign_tag_information(json_path, timeseries_path):
+def process(json_path, timeseries_path):
     tagged_tables = []
     with open(json_path, "r") as f:
         data = json.load(f)
@@ -17,7 +14,8 @@ def assign_tag_information(json_path, timeseries_path):
         if not table['class']:
             continue
         timeseries_table = pd.read_excel(timeseries_path, sheet_name=table['class'])
-        table = get_tag_information(table, timeseries_table)
+        timeseries_table = filter_tags(timeseries_table, table['class'])
+        table = assign_tag_information(table, timeseries_table)
         if table != None:
             tagged_tables.append(table)
     
@@ -26,14 +24,14 @@ def assign_tag_information(json_path, timeseries_path):
     
     excel_path = json_path.replace("tables.json", "tagged_tables.xlsx")
     with pd.ExcelWriter(excel_path) as excel_writer:
-        for table in tagged_tables:
+        for i, table in enumerate(tagged_tables):
             df = pd.DataFrame(table['body'])
             df.columns = table['header']
-            df.to_excel(excel_writer, sheet_name=table['class'], index=False)
+            df.to_excel(excel_writer, sheet_name=str(i) + "_" + table['class'], index=False)
     return tagged_tables
 
 
-def get_tag_information(table, timeseries_table):
+def assign_tag_information(table, timeseries_table):
     index, yr = get_latest_year_index(table['header'])
     timeseries_table_index = None
     for i, col in enumerate(timeseries_table.columns):
@@ -82,8 +80,13 @@ def get_tag(timeseries_table, timeseries_table_index, val_lst, variable):
 def get_latest_year_index(headers):
     years = []
     for col in headers:
+        if 'months ended' in col.lower() and not '12 months ended' in col.lower():
+            years.append(-1)
+            continue
         try:
             yr = int(col.split()[-1])
+            if 'jan' in col.lower() or 'january' in col.lower():
+                yr = yr - 1
         except:
             yr = -1
         years.append(yr)
@@ -105,15 +108,45 @@ def get_normalized_value(value_str, table_title):
     return value_str
 
 
+def filter_tags(timeseries_table, table_cls):
+    # Gross Profit 
+    tags_to_consider = {
+        "income statement": [
+            "Total Revenue", "Pretax Income", "Tax Provision", 
+            "Net Income", "Basic EPS", "Diluted EPS",
+        ],
+        "balance sheet": [
+            "Current Assets", "Total Non Current Assets", "Total Assets", "Current Liabilities",
+            "Total Non Current Liabilities Net Minority Interest", 
+            "Total Liabilities Net Minority Interest", "Total Equity Gross Minority Interest",
+            "Common Stock Equity"
+        ],
+        "cash flow": [
+            "Operating Cash Flow", "Investing Cash Flow", "Financing Cash Flow", 
+            "Changes In Cash", "Capital Expenditure", "Free Cash Flow"
+        ]
+    }
+    tags_to_consider = tags_to_consider[table_cls]
+    indices_to_drop = []
+    for i, row in timeseries_table.iterrows():
+        if row[0] not in tags_to_consider:
+            indices_to_drop.append(i)
+    
+    timeseries_table = timeseries_table.drop(indices_to_drop)
+    return timeseries_table
+
+
 if __name__ == "__main__":
     from glob import glob
     from utils import *
-    for json_path in glob("data/current/*/*/tables.json"):
+    paths = list(glob("data/current/*/*/tables.json"))
+    # paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844921000036\\tables.json"]
+    for json_path in paths:
         if "timeseries" in json_path:
             continue
         print(f"processing file:{json_path}")
         cik = get_folder_names(json_path)[-3]
         timeseries_path = f"data/yahoofinance/{cik}/tables.xlsx"
-        tables = assign_tag_information(json_path, timeseries_path)
+        tables = process(json_path, timeseries_path)
     # with open(json_path.replace("tables.json", "tagged_tables.json"), "w") as f:
     #     json.dump({"tables": tables}, f, indent=4)
