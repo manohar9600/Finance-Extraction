@@ -70,7 +70,7 @@ def assign_tag_information(table, timeseries_table):
         if not val or val == "0" or val == "0.0":
             # new_table_body.append(row[:1] + [""] + row[1:])
             continue
-        if not pd.isna(row[1]) and (row[1] == 'Basic EPS' or row[1] == 'Diluted EPS'): # ignoring already tagged variables.
+        if not pd.isna(row[1]) and len(row[1]) != 0: # ignoring already tagged variables.
             continue
         normalized_val = get_normalized_value(val, table['title'])
         tag, timeseries_table = get_tag(timeseries_table, timeseries_table_index, 
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     from glob import glob
     from utils import *
     paths = list(glob("data/current/*/*/tables.json"))
-    # paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844923000035\\tables.json"]
+    paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\a\\000109087220000020\\tables.json"]
     for json_path in paths:
         if "timeseries" in json_path:
             continue
