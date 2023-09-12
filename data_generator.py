@@ -70,7 +70,7 @@ def assign_tag_information(table, timeseries_table):
         if not val or val == "0" or val == "0.0":
             # new_table_body.append(row[:1] + [""] + row[1:])
             continue
-        if not pd.isna(row[1]) and len(row[1]) != 0: # ignoring already tagged variables.
+        if not pd.isna(row[1]) and (row[1] == 'Basic EPS' or row[1] == 'Diluted EPS'): # ignoring already tagged variables.
             continue
         normalized_val = get_normalized_value(val, table['title'])
         tag, timeseries_table = get_tag(timeseries_table, timeseries_table_index, 
@@ -100,6 +100,16 @@ def get_tag(timeseries_table, timeseries_table_index, val_lst, variable):
             timeseries_table = timeseries_table.drop([df_ind])
             # matches.append([df_ind, tag])
             break
+        # tax provison some times represented as inverse of - or +
+        elif(
+            ("-" in str(df_row[timeseries_table_index]) and clean_extra_zero(df_row[timeseries_table_index]) == "-" + val_lst[0]) or \
+            ("-" in val_lst[0] and "-" + clean_extra_zero(df_row[timeseries_table_index]) == val_lst[0])
+        ):
+            tag = df_row[0]
+            timeseries_table = timeseries_table.drop([df_ind])
+            # matches.append([df_ind, tag])
+            break
+            
     # print("dd")
     return tag, timeseries_table
 
@@ -124,13 +134,27 @@ def get_latest_year_index(headers):
 
 def get_normalized_value(value_str, table_title):
     unit_strings = {
-        "millions": "000000",
-        "thousands": "000"
+        "millions": 6,
+        "thousands": 3
     }
+    # converting '()' to negative numbers
+    if "(" in value_str:
+        value_str = value_str.replace("(", "").replace(")", "")
+        value_str = "-" + value_str
+    # cleaning currency and percentage strings
     value_str = re.sub("[^\d.-]", "", value_str).strip()
+    value_str = re.sub("\.0{1,}$", "", value_str)
     for unit in unit_strings:
         if unit in table_title.split()[-1].lower():
-            value_str = value_str + unit_strings[unit]
+            zero_to_add = unit_strings[unit]
+            if "." in value_str:
+                zero_to_add = zero_to_add - len(value_str.split(".")[-1])
+                # strpping extra values. eg: "thousads" of 2.3669, we have remove '9'
+                value_str = value_str[:len(value_str)+zero_to_add]
+            value_str = value_str + "0"*zero_to_add
+            value_str = value_str.replace(".", "")
+            value_str = re.sub("^-0{1,}", "-", value_str)
+            value_str = re.sub("^0{1,}", "", value_str)
             break
     return value_str
 
@@ -167,7 +191,7 @@ if __name__ == "__main__":
     from glob import glob
     from utils import *
     paths = list(glob("data/current/*/*/tables.json"))
-    paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844921000036\\tables.json"]
+    # paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\aap\\000115844923000035\\tables.json"]
     for json_path in paths:
         if "timeseries" in json_path:
             continue
