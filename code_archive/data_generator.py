@@ -6,6 +6,8 @@ from tqdm import tqdm
 import openpyxl
 from utils import write_to_excel
 import extraction.gpt_functions as gpt_fns
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def process(json_path, timeseries_path):
@@ -57,6 +59,9 @@ def get_present_tagged_data(json_path):
 
 def assign_tag_information(table, timeseries_table):
     index, yr = get_latest_year_index(table['header'])
+    if yr == -1:
+        return None
+    
     timeseries_table_index = None
     for i, col in enumerate(timeseries_table.columns):
         if i != 0 and str(yr) in str(col):
@@ -70,8 +75,14 @@ def assign_tag_information(table, timeseries_table):
         if not val or val == "0" or val == "0.0":
             # new_table_body.append(row[:1] + [""] + row[1:])
             continue
+
         if not pd.isna(row[1]) and len(row[1]) != 0: # ignoring already tagged variables.
+            for df_ind, df_row in timeseries_table.iterrows():
+                if not pd.isna(df_row[0]) and df_row[0].lower().strip() == row[1].lower().strip():
+                    timeseries_table = timeseries_table.drop([df_ind])
+                    break
             continue
+
         normalized_val = get_normalized_value(val, table['title'])
         tag, timeseries_table = get_tag(timeseries_table, timeseries_table_index, 
                       [normalized_val, val], row[0])
@@ -96,7 +107,7 @@ def get_tag(timeseries_table, timeseries_table_index, val_lst, variable):
             # if not gpt_fns.check_gpt_match(variable, df_row[0]):
             #     continue
             
-            tag = df_row[0]
+            tag = df_row[0].strip()
             timeseries_table = timeseries_table.drop([df_ind])
             # matches.append([df_ind, tag])
             break
@@ -105,12 +116,22 @@ def get_tag(timeseries_table, timeseries_table_index, val_lst, variable):
             ("-" in str(df_row[timeseries_table_index]) and clean_extra_zero(df_row[timeseries_table_index]) == "-" + val_lst[0]) or \
             ("-" in val_lst[0] and "-" + clean_extra_zero(df_row[timeseries_table_index]) == val_lst[0])
         ):
-            tag = df_row[0]
+            tag = df_row[0].strip()
             timeseries_table = timeseries_table.drop([df_ind])
             # matches.append([df_ind, tag])
             break
             
-    # print("dd")
+    # tags that can be desided by using names.
+    if tag == '':
+        if 'total assets' in variable.lower():
+            tag = 'Total Assets'
+        elif 'total current liabilities' in variable.lower():
+            tag = 'Current Liabilities'
+        elif "total liabilities and shareholders' equity" in variable.lower():
+            tag = 'Total Liabilities'
+        elif 'total current assets' in variable.lower():
+            tag = 'Current Assets'
+
     return tag, timeseries_table
 
 
@@ -167,14 +188,11 @@ def filter_tags(timeseries_table, table_cls):
             "Net Income", "Basic EPS", "Diluted EPS",
         ],
         "balance sheet": [
-            "Current Assets", "Total Non Current Assets", "Total Assets", "Current Liabilities",
-            "Total Non Current Liabilities Net Minority Interest", 
-            "Total Liabilities Net Minority Interest", "Total Equity Gross Minority Interest",
-            "Common Stock Equity"
+            "Current Assets", "Total Assets", "Current Liabilities", 
+            "Total Liabilities"
         ],
         "cash flow": [
-            "Operating Cash Flow", "Investing Cash Flow", "Financing Cash Flow", 
-            "Changes In Cash", "Capital Expenditure", "Free Cash Flow"
+            "Operating Cash Flow", "Investing Cash Flow", "Financing Cash Flow"
         ]
     }
     tags_to_consider = tags_to_consider[table_cls]
@@ -184,6 +202,17 @@ def filter_tags(timeseries_table, table_cls):
             indices_to_drop.append(i)
     
     timeseries_table = timeseries_table.drop(indices_to_drop)
+
+    # specific to total liabilitites,
+    if table_cls == "balance sheet":
+        index = None
+        for i, row in timeseries_table.iterrows():
+            if row[0] == 'Total Assets':
+                index = i
+                break
+        timeseries_table.loc[len(timeseries_table)] = timeseries_table.loc[index]
+        timeseries_table['Unnamed: 0'].iloc[-1] = 'Total Liabilities'
+
     return timeseries_table
 
 
@@ -191,7 +220,7 @@ if __name__ == "__main__":
     from glob import glob
     from utils import *
     paths = list(glob("data/current/*/*/tables.json"))
-    paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\a\\000109087220000020\\tables.json"]
+    # paths = ["C:\\Users\\Manohar\\Desktop\\Projects\\Finance-Extraction\\data\\current\\afl\\000000497723000055\\tables.json"]
     for json_path in paths:
         if "timeseries" in json_path:
             continue

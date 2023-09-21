@@ -1,3 +1,5 @@
+# code related to sections text from HTML documents.
+
 import click
 import json
 import logging

@@ -6,3 +6,4 @@ data*/*
 benchmark*/*
 archive/*
 lightning_logs
+.ipynb_checkpoints
