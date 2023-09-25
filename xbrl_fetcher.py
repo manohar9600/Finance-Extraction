@@ -43,12 +43,14 @@ def download_company_files(master_folder, cik):
 
         links = soup.find_all("a")
         for link in links:
-            if "Financial_Report.xlsx" in link['href']:
-                download_file(html_master + "/" + "Financial_Report.xlsx", folder_path)
+            if "Financial_Report.xlsx" in link['href'] or ".xml" in link['href'] or \
+                    ".xsd" in link['href']:
+                download_file(html_master + "/" +  link['href'], folder_path)
 
         _, html_file_path = download_file(html_master + "/" + links[0]['href'], folder_path)
         metadata = {
             "cik": cik,
+            "filingDirectory": html_master,
             "filingURL": filing_url
         }
         
@@ -61,6 +63,8 @@ def download_company_files(master_folder, cik):
             if xbrl_xml_name:
                 _, html_file_path = download_file(html_master + "/" + xbrl_xml_name, folder_path)
                 xbrl_data = get_xbrl_data(html_file_path)
+        if not xbrl_data or not xbrl_data['factList']:
+            logger.warning("got empty xbrl data")
 
         with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
             json.dump(xbrl_data, f, indent=4)
@@ -81,7 +85,7 @@ def get_xbrl_xml_path(index_content):
 
     link_description = ''
     for doc in soup.find_all('document'):
-        doc_description = doc.description.find(text=True, recursive=False)
+        doc_description = doc.description.find(string=True, recursive=False)
         if "xbrl instance document" in doc_description.lower():
             link_description = doc.find('text').get_text().strip('\n')
             break
@@ -96,6 +100,6 @@ def get_xbrl_xml_path(index_content):
 
 
 if __name__ == "__main__":
-    download_folder = 'data/current2'
+    download_folder = 'data/current'
     ciks = ['AXP']
     download_company_files(download_folder, ciks[0]) 
