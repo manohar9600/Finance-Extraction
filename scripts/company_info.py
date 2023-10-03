@@ -51,7 +51,7 @@ def extract_html_table(table_tag):
 
 def insert_values(results):
     data_to_insert = []
-    columns = ('symbol', 'name', 'security', '"GICS sector"', '"GICS sub-industry"', '"headquarters location"')
+    columns = ('Symbol', 'Name', 'Security', '"GICS Sector"', '"GICS Sub-Industry"', '"Headquarters Location"')
     for res in results[0]:
         data_to_insert.append([res[0], res[2], res[1], res[3], res[4], res[5]])
     
