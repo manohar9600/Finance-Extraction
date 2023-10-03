@@ -43,7 +43,7 @@ def get_company_data(company_symbol):
     cursor.execute(f"SELECT id FROM companies where symbol='{company_symbol}'")
     comp_id = cursor.fetchone()[0]
     
-    query = f"SELECT * FROM values INNER JOIN variables ON values.variableid = variables.id WHERE values.companyid = {comp_id}"
+    query = f"SELECT * FROM values RIGHT JOIN variables ON values.variableid = variables.id WHERE values.companyid = {comp_id} or values.companyid is null order by variables.id"
     cursor.execute(query)
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
@@ -70,14 +70,16 @@ class CompanyData(tornado.web.RequestHandler):
         company_data = get_company_data(data['company'])
         columns = company_data
         df = get_company_data(data['company'])
+        columns = sorted([d for d in df.period.unique() if d is not None], reverse=True)
         tables = []
         for table_name, table_grp in df.groupby('table'):
-            columns = list(df.period.unique())
             table = []
-            for _, grp in table_grp.groupby('variableid'):
+            for _, grp in table_grp.groupby('variable', sort=False):
                 table_row = ["" for _ in range(len(columns)+1)]
                 table_row[0] = grp.iloc[0]['variable']
                 for _, row in grp.iterrows():
+                    if row['period'] is None:
+                        continue
                     index = columns.index(row['period'])
                     table_row[index+1] = row['value']
                 table.append(table_row)
@@ -88,6 +90,8 @@ class CompanyData(tornado.web.RequestHandler):
                 "body": table
             }
             tables.append(table)
+        pref_dict = {'income statement': 1, 'balance sheet': 2, 'cash flow': 3}
+        tables = sorted(tables, key=lambda x:pref_dict[x['class']])
         self.set_header('Content-Type', 'application/json')
         self.write({'tables': tables})
 
