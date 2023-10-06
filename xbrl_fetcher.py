@@ -1,3 +1,5 @@
+# this file fetches data from SEC using company symbol
+# search for datapoint in xbrl and inserts into database
 import os
 import requests
 import json
@@ -5,9 +7,11 @@ from datetime import date, datetime
 from secedgar import CompanyFilings, FilingType
 from bs4 import BeautifulSoup
 from loguru import logger
+from data_insertor import map_datapoint_values, insert_values
 
 
 def get_filing_urls(cik):
+    cik = cik.split('.')[0]
     filing = CompanyFilings(cik_lookup=cik,
                             filing_type=FilingType.FILING_10K,
                             start_date=date(2018, 1, 1),
@@ -36,6 +40,8 @@ def download_company_files(master_folder, cik):
         html_master = "/".join(filing_url.split('/')[:-1])
         index_url = filing_url.replace(".txt", "-index-headers.html")
         folder_path = f"{master_folder}/{cik}/" + html_master.split('/')[-1]
+        if os.path.exists(os.path.join(folder_path, "xbrl_data.json")):
+            continue
         logger.info(f"processing {filing_url}")
         os.makedirs(folder_path, exist_ok=True)
         index_content, _ = download_file(index_url, folder_path)
@@ -63,8 +69,13 @@ def download_company_files(master_folder, cik):
             if xbrl_xml_name:
                 _, html_file_path = download_file(html_master + "/" + xbrl_xml_name, folder_path)
                 xbrl_data = get_xbrl_data(html_file_path)
+
         if not xbrl_data or not xbrl_data['factList']:
             logger.warning("got empty xbrl data")
+        else:
+            # inserting data into database
+            results = map_datapoint_values(xbrl_data)
+            insert_values(cik, results)
 
         with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
             json.dump(xbrl_data, f, indent=4)
@@ -85,7 +96,10 @@ def get_xbrl_xml_path(index_content):
 
     link_description = ''
     for doc in soup.find_all('document'):
-        doc_description = doc.description.find(string=True, recursive=False)
+        try:
+            doc_description = doc.description.find(string=True, recursive=False)
+        except:
+            doc_description = ''
         if "xbrl instance document" in doc_description.lower():
             link_description = doc.find('text').get_text().strip('\n')
             break
@@ -100,6 +114,8 @@ def get_xbrl_xml_path(index_content):
 
 
 if __name__ == "__main__":
-    download_folder = 'data/current'
-    ciks = ['AXP']
-    download_company_files(download_folder, ciks[0]) 
+    master_folder = 'data/current'
+    ciks = []
+    for cik in ciks:  
+        logger.info(f"processing company. symbol:{cik}")
+        download_company_files(master_folder, cik)
