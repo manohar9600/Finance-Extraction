@@ -7,3 +7,4 @@ benchmark*/*
 archive/*
 lightning_logs
 .ipynb_checkpoints
+*.txt

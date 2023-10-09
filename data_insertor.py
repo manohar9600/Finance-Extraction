@@ -18,7 +18,7 @@ def get_prod_variables():
     cursor.execute("SELECT * FROM variables")
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
-    df = df[df['id'].isin([12,13])] # temporary line
+    # df = df[df['id'].isin([12,13])] # temporary line
     return df
 
 
@@ -76,7 +76,8 @@ def map_datapoint_values(datapoint_values, vars_df):
             row['match'] = match
             if match is not None:
                 break
-        results.append(row)
+        if 'match' in row and row['match'] is not None:
+            results.append(row)
     return results
 
 

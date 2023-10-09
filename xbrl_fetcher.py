@@ -7,7 +7,7 @@ from datetime import date, datetime
 from secedgar import CompanyFilings, FilingType
 from bs4 import BeautifulSoup
 from loguru import logger
-from data_insertor import map_datapoint_values, insert_values
+from data_insertor import map_datapoint_values, insert_values, get_prod_variables
 
 
 def get_filing_urls(cik):
@@ -23,6 +23,8 @@ def get_filing_urls(cik):
 
 
 def download_file(link, folder_path):
+    if not link:
+        return '', ''
     headers = {
        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/93.0.4577.63 Safari/537.36"
     }
@@ -34,19 +36,20 @@ def download_file(link, folder_path):
     return r.text, file_path
 
 
-def download_company_files(master_folder, cik):
+def download_company_files(master_folder, cik, vars_df):
     filing_urls = get_filing_urls(cik)
     for filing_url in filing_urls:
         html_master = "/".join(filing_url.split('/')[:-1])
         index_url = filing_url.replace(".txt", "-index-headers.html")
         folder_path = f"{master_folder}/{cik}/" + html_master.split('/')[-1]
+
         if os.path.exists(os.path.join(folder_path, "xbrl_data.json")):
             continue
         logger.info(f"processing {filing_url}")
         os.makedirs(folder_path, exist_ok=True)
+
         index_content, _ = download_file(index_url, folder_path)
         soup = BeautifulSoup(index_content, "html.parser")
-
         links = soup.find_all("a")
         for link in links:
             if "Financial_Report.xlsx" in link['href'] or ".xml" in link['href'] or \
@@ -63,19 +66,25 @@ def download_company_files(master_folder, cik):
         with open(os.path.join(folder_path, "metadata.json"), 'w') as f:
             json.dump(metadata, f, indent=4)
         
-        xbrl_data = get_xbrl_data(html_file_path)
-        if not xbrl_data['factList']:
-            xbrl_xml_name = get_xbrl_xml_path(index_content)
-            if xbrl_xml_name:
-                _, html_file_path = download_file(html_master + "/" + xbrl_xml_name, folder_path)
-                xbrl_data = get_xbrl_data(html_file_path)
-
-        if not xbrl_data or not xbrl_data['factList']:
-            logger.warning("got empty xbrl data")
-        else:
+        xbrl_data = {}
+        xbrl_paths = [html_file_path, download_file(get_xbrl_xml_path(
+            html_master, index_content), folder_path)[1], 
+            download_file(get_extracted_xml_path(
+            html_master, filing_url, folder_path), folder_path)[1]]
+        for path in xbrl_paths:
+            if not path:
+                continue
+            xbrl_data = get_xbrl_data(path)
+            if not xbrl_data or not xbrl_data['factList']:
+                continue
+            results = map_datapoint_values(xbrl_data, vars_df)
+            if not results:
+                continue
             # inserting data into database
-            results = map_datapoint_values(xbrl_data)
             insert_values(cik, results)
+            break
+        else:
+            logger.warning("got empty xbrl data")
 
         with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
             json.dump(xbrl_data, f, indent=4)
@@ -90,32 +99,44 @@ def get_xbrl_data(html_file_path):
     return r.json()
 
 
-def get_xbrl_xml_path(index_content):
+def get_xbrl_xml_path(html_master, index_content):
     xml_text = BeautifulSoup(index_content, "html.parser").get_text()
     soup = BeautifulSoup(xml_text, 'lxml')
 
     link_description = ''
     for doc in soup.find_all('document'):
         try:
-            doc_description = doc.description.find(string=True, recursive=False)
+            doc_type = doc.type.find(string=True, recursive=False)
         except:
-            doc_description = ''
-        if "xbrl instance document" in doc_description.lower():
+            doc_type = ''
+        if "EX-101.INS" in doc_type:
             link_description = doc.find('text').get_text().strip('\n')
             break
 
     xbrl_xml_link = ""
     soup = BeautifulSoup(index_content, "html.parser")
     for link in soup.find_all('a'):
-        if link_description in link.get_text():
+        if link_description and link_description in link.get_text():
             xbrl_xml_link = link.get('href')
             break
+    if xbrl_xml_link:
+        return html_master + "/" + xbrl_xml_link.strip("/")
     return xbrl_xml_link
 
 
+def get_extracted_xml_path(html_master, filing_url, folder_path):
+    index_html_url = filing_url.replace(".txt", "-index.html")
+    index_html_content, _ = download_file(index_html_url, folder_path)
+    soup = BeautifulSoup(index_html_content, "html.parser")
+    link = soup.find_all('table')[-1].find_all('tr')[-1].find_all('td')[2].find('a')['href']
+    return "https://www.sec.gov" + link
+
+
 if __name__ == "__main__":
+    vars_df = get_prod_variables()
     master_folder = 'data/current'
-    ciks = []
-    for cik in ciks:  
+    # ciks = ["CSCO","C","CFG","CLX","CME","CMS","KO","CTSH","CL","CMCSA","CMA","CAG","COP","ED","STZ","CEG","COO","CPRT","GLW","CTVA","CSGP","COST","CTRA","CCI","CSX","CMI","CVS","DHI","DHR","DRI","DVA","DE","DAL","XRAY","DVN","DXCM","FANG","DLR","DFS","DIS","DG","DLTR","D","DPZ","DOV","DOW","DTE","DUK","DD","DXC","EMN","ETN","EBAY","ECL","EIX","EW","EA","ELV","LLY","EMR","ENPH","ETR","EOG","EPAM","EQT","EFX","EQIX","EQR","ESS","EL","ETSY","EG","EVRG","ES","EXC","EXPE","EXPD","EXR","XOM","FFIV","FDS","FICO","FAST","FRT","FDX","FITB","FSLR","FE","FIS","FI","FLT","FMC","F","FTNT","FTV","FOXA","FOX","BEN","FCX","GRMN","IT","GEHC","GEN","GNRC","GD","GE","GIS","GM","GPC","GILD","GL","GPN","GS","HAL","HIG","HAS","HCA","NUE","PEAK","HSIC","HSY","HES","HPE","HLT","HOLX","HD","HON","HRL","HST","HWM","HPQ","HUM","HBAN","HII","IBM","IEX","IDXX","ITW","ILMN","INCY","IR","PODD","INTC","ICE","IFF","IP","IPG","INTU","ISRG","IVZ","INVH","IQV","IRM","JBHT","JKHY","J","JNJ","JCI","JPM","JNPR","K","KVUE","KDP","KEY","KEYS","KMB","KIM","KMI","KLAC","KHC","KR","LHX","LH","LRCX","LW","LVS","LDOS","LEN","LIN","LYV","LKQ","LMT","L","LOW","LYB","MTB","MRO","MPC","MKTX","MAR","MMC","MLM","MAS","MA","MTCH","MKC","MCD","MCK","MDT","MRK","META","MET","MTD","MGM","MCHP","MU","MSFT","MAA","MRNA","MHK","MOH","TAP","MDLZ","MPWR","MNST","MCO","MS","MOS","MSI","MSCI","NDAQ","NTAP","NFLX","NEM","NWSA","NWS","NEE","NKE","NI","NDSN","NSC","NTRS","NOC","NCLH","NRG","NVDA","NVR","NXPI","ORLY","OXY","ODFL","OMC","ON","OKE","ORCL","OGN","OTIS","PCAR","PKG","PANW","PARA","PH","PAYX","PAYC","PYPL","PNR","PEP","PFE","PCG","PM","PSX","PNW","PXD","PNC","POOL","PPG","PPL","PFG","PG","PGR","PLD","PRU","PEG","PTC","PSA","PHM","QRVO","PWR","QCOM","DGX","RL","RJF","RTX","O","REG","REGN","RF","RSG","RMD","RVTY","RHI","ROK","ROL","ROP","ROST","RCL","SPGI","CRM","SBAC","SLB","STX","SEE","SRE","NOW","SHW","SPG","SWKS","SJM","SNA","SEDG","SO","LUV","SWK","SBUX","STT","STLD","STE","SYK","SYF","SNPS","SYY","TMUS","TROW","TTWO","TPR","TRGP","TGT","TEL","TDY","TFX","TER","TSLA","TXN","TXT","TMO","TJX","TSCO","TT","TDG","TRV","TRMB","TFC","TYL","TSN","USB","UDR","ULTA","UNP","UAL","UPS","URI","UNH","UHS","VLO","VTR","VRSN","VRSK","VZ","VRTX","VFC","VTRS","VICI","V","VMC","WAB","WBA","WMT","WBD","WM","WAT","WEC","WFC","WELL","WST","WDC","WRK","WY","WHR","WMB","WTW","GWW","WYNN","XEL","XYL","YUM","ZBRA","ZBH","ZION","ZTS"]
+    ciks = ['CLX']
+    for cik in ciks:
         logger.info(f"processing company. symbol:{cik}")
-        download_company_files(master_folder, cik)
+        download_company_files(master_folder, cik, vars_df)
