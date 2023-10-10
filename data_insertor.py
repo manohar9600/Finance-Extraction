@@ -48,31 +48,38 @@ def get_time_diff(d1, d2):
     return diff.days
 
 
-def get_xbrl_match(datapoint_values, var_dict, xbrlid):
+def get_xbrl_match(datapoint_values, var_dict, xbrlid, document_period=None):
     matches = []
     for dp in datapoint_values:
         if not "dimensions" in dp[2] and dp[2]["label"] == xbrlid:
             time_diff = get_time_diff(dp[2].get('start', ''), dp[2].get('endInstant', ''))
-            if time_diff is not None and var_dict['table'] in ['income statement', 'cash flow'] and \
+            if var_dict is None:
+                matches.append(dp[2])
+            elif time_diff is not None and var_dict['table'] in ['income statement', 'cash flow'] and \
                     time_diff >= 360 and time_diff <= 370:
                 matches.append(dp[2])
             elif time_diff is not None and var_dict['table'] == 'balance sheet' and \
                     time_diff >= 1000:
                 matches.append(dp[2])
 
-    final_match = None
     if matches:
-        final_match = max(matches, key=lambda x:datetime.strptime(x['endInstant'], '%Y-%m-%d'))
-    return final_match
+        if document_period is None:
+            return max(matches, key=lambda x:datetime.strptime(x['endInstant'], '%Y-%m-%d'))
+        else:
+            for match in matches:
+                if match['endInstant'] == document_period:
+                    return match
+    return None
 
 
 def map_datapoint_values(datapoint_values, vars_df):
     datapoint_values = datapoint_values['factList']
+    document_period = get_xbrl_match(datapoint_values, None, 'dei:DocumentPeriodEndDate')['value']
     results = []
     for i, row in vars_df.iterrows():
         row = row.to_dict()
         for xbrlid in row['xbrlids']:
-            match = get_xbrl_match(datapoint_values, row, xbrlid)
+            match = get_xbrl_match(datapoint_values, row, xbrlid, document_period)
             row['match'] = match
             if match is not None:
                 break
