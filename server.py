@@ -52,7 +52,7 @@ def get_company_data(company_symbol):
     cursor.execute(f"SELECT id FROM companies where \"Symbol\"='{company_symbol}'")
     comp_id = cursor.fetchone()[0]
     
-    query = f"SELECT * FROM values RIGHT JOIN variables ON values.variableid = variables.id WHERE values.companyid = {comp_id} or values.companyid is null order by variables.id"
+    query = f"WITH FilteredOrders AS (SELECT * FROM values WHERE values.companyid = {comp_id}) SELECT * FROM FilteredOrders AS fo RIGHT JOIN variables ON fo.variableid = variables.id ORDER by variables.id"
     cursor.execute(query)
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
