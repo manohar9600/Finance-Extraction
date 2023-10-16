@@ -6,6 +6,7 @@ import pandas as pd
 from loguru import logger
 from glob import glob
 from datetime import datetime
+from extraction.utils import convert_to_number
 
 
 def get_prod_variables():
@@ -18,7 +19,7 @@ def get_prod_variables():
     cursor.execute("SELECT * FROM variables")
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
-    # df = df[df['id'].isin([12,13])] # temporary line
+    # df = df[df['id'].isin([1])] # temporary line
     return df
 
 
@@ -72,14 +73,69 @@ def get_xbrl_match(datapoint_values, var_dict, xbrlid, document_period=None):
     return None
 
 
-def map_datapoint_values(datapoint_values, vars_df):
+def get_formula_match(datapoint_values, row, xbrlid, document_period, hierarchy):
+    def _find_match(obj, xbrlid):
+        if obj[1]['label'] == xbrlid:
+            return obj
+        for _obj in obj[3:]:
+            match = _find_match(_obj, xbrlid)
+            if match is not None:
+                return match
+        return None
+
+    def _get_calculated_value(obj):
+        sub_item_values = []
+        for sub_item in obj[3:]:
+            sub_item_match = get_xbrl_match(datapoint_values, row, 
+                                        sub_item[1]['label'], document_period)
+            if sub_item_match is None:
+                sub_item_value = _get_calculated_value(sub_item)
+            else:
+                sub_item_value = sub_item_match['value']
+            if sub_item_value is None:
+                return None
+            sub_item_values.append(sub_item_value)
+        if sub_item_values:
+            return sum([convert_to_number(s) for s in sub_item_values])
+        return None
+
+    hierarchy = hierarchy['presentationLinkbase']
+    match = None
+    top3_tables = ['us-gaap:IncomeStatementAbstract', 
+                   'us-gaap:StatementOfFinancialPositionAbstract', 
+                   'us-gaap:StatementOfCashFlowsAbstract']
+    for table in hierarchy:
+        table_identifier = table[3][1]['name']
+        if table_identifier not in top3_tables:
+            continue
+        match = _find_match(table[3], xbrlid + "Abstract")
+        if match is not None:
+            break
+    if match is None or len(match) <= 3:
+        return None
+    value = _get_calculated_value(match)
+    if value is None:
+        return None
+    finalres = {
+        'label': xbrlid,
+        'value': str(value),
+        'endInstant': document_period
+    }
+    return finalres
+
+
+def map_datapoint_values(datapoint_values, vars_df, hierarchy):
     datapoint_values = datapoint_values['factList']
-    document_period = get_xbrl_match(datapoint_values, None, 'dei:DocumentPeriodEndDate')['value']
     results = []
+    if not datapoint_values:
+        return results
+    document_period = get_xbrl_match(datapoint_values, None, 'dei:DocumentPeriodEndDate')['value']
     for i, row in vars_df.iterrows():
         row = row.to_dict()
         for xbrlid in row['xbrlids']:
             match = get_xbrl_match(datapoint_values, row, xbrlid, document_period)
+            if match is None:
+                match = get_formula_match(datapoint_values, row, xbrlid, document_period, hierarchy)
             row['match'] = match
             if match is not None:
                 break
@@ -118,10 +174,13 @@ if __name__ == "__main__":
         company_symbol = os.path.basename(folder)
         logger.info(f"processing company. symbol:{company_symbol}")
         for file_path in glob(os.path.join(folder, "*/xbrl_data.json")):
+            file_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\000032019319000119\xbrl_data.json"
             with open(file_path, "r") as f:
                 datapoint_values = json.load(f)
+            with open(file_path.replace("xbrl_data", "xbrl_pre"), "r") as f:
+                hierarchy = json.load(f)
             if not 'factList' in datapoint_values:
                 continue
             logger.info(f"processing file. {file_path}")
-            results = map_datapoint_values(datapoint_values, vars_df)
-            # insert_values(company_symbol, results)
+            results = map_datapoint_values(datapoint_values, vars_df, hierarchy)
+            insert_values(company_symbol, results)
