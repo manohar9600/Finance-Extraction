@@ -19,7 +19,7 @@ def get_prod_variables():
     cursor.execute("SELECT * FROM variables")
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
-    # df = df[df['id'].isin([1])] # temporary line
+    df = df[df['id'].isin([1])] # temporary line
     return df
 
 
@@ -174,7 +174,6 @@ if __name__ == "__main__":
         company_symbol = os.path.basename(folder)
         logger.info(f"processing company. symbol:{company_symbol}")
         for file_path in glob(os.path.join(folder, "*/xbrl_data.json")):
-            file_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\000032019319000119\xbrl_data.json"
             with open(file_path, "r") as f:
                 datapoint_values = json.load(f)
             with open(file_path.replace("xbrl_data", "xbrl_pre"), "r") as f:
