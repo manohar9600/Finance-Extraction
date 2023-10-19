@@ -6,6 +6,7 @@ import pandas as pd
 from loguru import logger
 from glob import glob
 from datetime import datetime
+import re
 from extraction.utils import convert_to_number
 
 
@@ -127,6 +128,7 @@ def get_formula_match(datapoint_values, row, xbrlid, document_period, hierarchy)
 def map_datapoint_values(datapoint_values, vars_df, hierarchy):
     datapoint_values = datapoint_values['factList']
     results = []
+    empty_vars = []
     if not datapoint_values:
         return results
     document_period = get_xbrl_match(datapoint_values, None, 'dei:DocumentPeriodEndDate')['value']
@@ -141,6 +143,39 @@ def map_datapoint_values(datapoint_values, vars_df, hierarchy):
                 break
         if 'match' in row and row['match'] is not None:
             results.append(row)
+        else:
+            empty_vars.append(row)
+    results = calculate_variable_formulas(results, empty_vars, document_period)
+    return results
+
+
+def calculate_variable_formulas(results, empty_vars, document_period):
+    # this function caluculates values by using formula mentioned in database
+    # supports only additions and subtractions
+    values_dict = {}
+    for var in results:
+        values_dict[str(var['id'])] = var['match']['value']
+    for variable in empty_vars:
+        if variable['formula'] is None:
+            continue
+        calculated_value = 0
+        for var in re.findall(r'[+-]?\d+', variable['formula']):
+            value = values_dict.get(var.replace('+','').replace('-', ''), None)
+            if value is None:
+                break
+            if "-" in var:
+                calculated_value -= convert_to_number(value)
+            else:
+                calculated_value += convert_to_number(value)
+        else:
+            finalres = {
+                'label': '',
+                'value': str(calculated_value),
+                'endInstant': document_period
+            }
+            variable['match'] = finalres
+            results.append(variable)
+
     return results
 
 

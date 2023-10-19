@@ -55,7 +55,7 @@ def download_company_files(master_folder, cik, vars_df):
         index_url = filing_url.replace(".txt", "-index-headers.html")
         folder_path = f"{master_folder}/{cik}/" + html_master.split('/')[-1]
 
-        if os.path.exists(os.path.join(folder_path, "xbrl_data.json")):
+        if os.path.exists(os.path.join(folder_path, "xbrl_pre.json")):
             continue
         logger.info(f"processing {filing_url}")
         os.makedirs(folder_path, exist_ok=True)
@@ -69,37 +69,39 @@ def download_company_files(master_folder, cik, vars_df):
                 download_file(html_master + "/" +  link['href'], folder_path)
 
         _, html_file_path = download_file(html_master + "/" + links[0]['href'], folder_path)
-        metadata = {
-            "cik": cik,
-            "filingDirectory": html_master,
-            "filingURL": filing_url
-        }
-        
+        metadata = { "cik": cik, "filingDirectory": html_master, "filingURL": filing_url}
         with open(os.path.join(folder_path, "metadata.json"), 'w') as f:
             json.dump(metadata, f, indent=4)
         
-        xbrl_data = {}
         xbrl_paths = [html_file_path, download_file(get_xbrl_xml_path(
             html_master, index_content), folder_path)[1], 
             download_file(get_extracted_xml_path(
             html_master, filing_url, folder_path), folder_path)[1]]
-        for path in xbrl_paths:
-            if not path:
-                continue
-            xbrl_data = get_xbrl_data(path)
-            if not xbrl_data or not xbrl_data['factList']:
-                continue
-            results = map_datapoint_values(xbrl_data, vars_df)
-            if not results:
-                continue
-            # inserting data into database
-            insert_values(cik, results)
-            break
-        else:
-            logger.warning("got empty xbrl data")
-
+        xbrl_data, hierarchy = match_insert_values(vars_df, xbrl_paths)
         with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
-            json.dump(xbrl_data, f, indent=4)
+            json.dump(xbrl_data, f, indent=4) 
+        with open(os.path.join(folder_path, "xbrl_pre.json"), 'w') as f:
+            json.dump(hierarchy, f, indent=4)
+
+
+def match_insert_values(vars_df, xbrl_paths):
+    xbrl_data = {}
+    hierarchy = {}
+    for path in xbrl_paths:
+        if not path:
+            continue
+        xbrl_data, hierarchy = get_xbrl_data(path)
+        if not xbrl_data or not xbrl_data['factList']:
+            continue
+        results = map_datapoint_values(xbrl_data, vars_df, hierarchy)
+        if not results:
+            continue
+            # inserting data into database
+            # insert_values(cik, results)
+        break
+    else:
+        logger.warning("got empty xbrl data")
+    return xbrl_data, hierarchy
 
 
 def get_xbrl_data(html_file_path):
@@ -108,7 +110,11 @@ def get_xbrl_data(html_file_path):
     html_file_path = html_file_path.replace("\\", "/")
     req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=facts&media=json&factListCols=Label,unitRef,Dec,Value,Period,Dimensions"
     r = requests.get(req_url)
-    return r.json()
+    xbrl_data = r.json()
+    req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=pre&media=json"
+    r = requests.get(req_url)
+    hierarchy = r.json()
+    return xbrl_data, hierarchy
 
 
 def get_xbrl_xml_path(html_master, index_content):
