@@ -12,7 +12,7 @@ def convert_intervaltree(table_tree):
         for i, cell in enumerate(interval.data):
             if cell is not None:
                 # table_body[i].append(cell.get_text())
-                table_body[i].append(" ".join([_c.get_text() for _c in cell]))
+                table_body[i].append(" ".join([_c.get_text().strip() for _c in cell]))
             else:
                 table_body[i].append("")
     return table_body
@@ -20,6 +20,7 @@ def convert_intervaltree(table_tree):
 
 def divide_column_rows(table_rows):
     column_index = 0
+    multi_column_text = ""
     for row in table_rows:
         non_variable_text = ""
         for _c in row.find_all('td')[1:]:
@@ -27,8 +28,11 @@ def divide_column_rows(table_rows):
                 break
             non_variable_text += _c.get_text()
         else:
-            if column_index != 0 and not non_variable_text.strip() and row.get_text().strip():
+            if multi_column_text and not non_variable_text.strip() and row.get_text().strip():
                 break
+            col_texts = [t.get_text().strip() for t in row.find_all('td') if t.get_text().strip()]
+            if len(col_texts) > 1:
+                multi_column_text = multi_column_text + " ".join(col_texts)
             column_index += 1
             continue
         break
@@ -90,14 +94,15 @@ def extract_html_tables(html_path):
     tables = []
     table_tags = soup.find_all('table')
     for table_tag in table_tags:
-        tables.append(extract_html_table(table_tag))
+        table = extract_html_table(table_tag)
+        if table['body']:
+            tables.append(table)
     
-    return tables    
+    return tables
 
 
 if __name__ == "__main__":
-    folder_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\xbrl-documents"
-    html_path = os.path.join(folder_path, "axp-20221231.htm")
+    html_path = r"data\current\ACGL\000094748423000015\acgl-20221231.htm"
     data = extract_html_tables(html_path)
     with open("test.json", "w") as f:
         json.dump(data, f, indent=4)
