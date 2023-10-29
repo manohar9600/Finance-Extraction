@@ -66,10 +66,13 @@ def get_xbrl_match(datapoint_values, var_dict, xbrlid, document_period=None):
 
     if matches:
         if document_period is None:
-            return max(matches, key=lambda x:datetime.strptime(x['endInstant'], '%Y-%m-%d'))
+            best_match = max(matches, key=lambda x:datetime.strptime(x['endInstant'], '%Y-%m-%d'))
+            best_match['extraction'] = 'extracted'
+            return best_match
         else:
             for match in matches:
                 if match['endInstant'] == document_period:
+                    match['extraction'] = 'extracted'
                     return match
     return None
 
@@ -120,7 +123,8 @@ def get_formula_match(datapoint_values, row, xbrlid, document_period, hierarchy)
     finalres = {
         'label': xbrlid,
         'value': str(value),
-        'endInstant': document_period
+        'endInstant': document_period,
+        'extraction': 'calculated'
     }
     return finalres
 
@@ -171,7 +175,8 @@ def calculate_variable_formulas(results, empty_vars, document_period):
             finalres = {
                 'label': '',
                 'value': str(calculated_value),
-                'endInstant': document_period
+                'endInstant': document_period,
+                'extraction': 'calculated'
             }
             variable['match'] = finalres
             results.append(variable)
@@ -183,13 +188,13 @@ def insert_values(comp_sym, results):
     company_id = get_company_id(comp_sym)
 
     data_to_insert = []
-    columns = ('value', 'scale', 'period', 'variableid', 'companyid', 'documenttype')
+    columns = ('value', 'scale', 'period', 'variableid', 'companyid', 'documenttype', 'type')
     for res in results:
         if not 'match' in res or res['match'] is None:
             continue
         data_to_insert.append([float(res['match']['value'].replace(',', '')), 1, 
                                datetime.strptime(res['match']['endInstant'], '%Y-%m-%d'),
-                               res['id'], company_id, '10K'])
+                               res['id'], company_id, '10K', res['match']['extraction']])
     
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
