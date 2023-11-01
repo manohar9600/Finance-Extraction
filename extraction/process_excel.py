@@ -1,13 +1,12 @@
 import openpyxl
 from tqdm import tqdm
 from extraction.tables import *
-from classification import *
 
 
 def process_finance_excel(excel_path):
     workbook = openpyxl.load_workbook(excel_path)
     tables = []
-    for sheet_name in tqdm(workbook.sheetnames[:20]):
+    for sheet_name in workbook.sheetnames[:20]:
         sheet = workbook[sheet_name]
         table = []
         for row in sheet.iter_rows(min_row=1, max_row=sheet.max_row):
@@ -48,7 +47,7 @@ def get_final_table_obj(sheet, table):
 
     table_object = {
         "title": table[0][0],
-        "class": get_table_class(table[0][0]),
+        "class": "",
         "header": columns,
         "body": table_body
     }

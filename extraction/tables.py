@@ -2,7 +2,7 @@ import re
 import pandas as pd
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-from utils import most_occuring_element
+from extraction.utils import most_occuring_element
 
 
 def construct_tables(tables):

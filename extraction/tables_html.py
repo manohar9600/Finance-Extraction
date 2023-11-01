@@ -7,14 +7,29 @@ from bs4 import BeautifulSoup
 def convert_intervaltree(table_tree):
     # function to convert interval tree data to list data
     num_rows = max([len(interval.data) for interval in sorted(table_tree)], default=0)
-    table_body = [[] for _ in range(num_rows)]
+    table_tree_unwraped = [[] for _ in range(num_rows)]
     for interval in sorted(table_tree):
         for i, cell in enumerate(interval.data):
-            if cell is not None:
-                # table_body[i].append(cell.get_text())
-                table_body[i].append(" ".join([_c.get_text().strip() for _c in cell]))
+            table_tree_unwraped[i].append(cell)
+    
+    table_body = []
+    for row in table_tree_unwraped:
+        tag = []
+        table_row = []
+        for i, cells in enumerate(row):
+            if cells is not None:
+                table_row.append(" ".join([_c.get_text().strip() for _c in cells]))
             else:
-                table_body[i].append("")
+                table_row.append("")
+                continue
+            for cell in cells:
+                if i > 0 and not tag and cell.find_all('ix:nonfraction'):
+                    tag = [cell.find_all('ix:nonfraction')[0]['name'], 
+                           [cell.find_all('ix:nonfraction')[0]['contextref']]]
+                elif i > 0 and tag and cell.find_all('ix:nonfraction'):
+                    tag[1].append(cell.find_all('ix:nonfraction')[0]['contextref'])
+        table_row = table_row[:1] + [tag] + table_row[1:]
+        table_body.append(table_row)
     return table_body
 
 
