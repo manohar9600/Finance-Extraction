@@ -55,7 +55,7 @@ def download_company_files(master_folder, cik, vars_df):
         index_url = filing_url.replace(".txt", "-index-headers.html")
         folder_path = f"{master_folder}/{cik}/" + html_master.split('/')[-1]
 
-        if os.path.exists(os.path.join(folder_path, "xbrl_pre.json")):
+        if os.path.exists(os.path.join(folder_path, "xbrl_pre.json")) and False:
             continue
         logger.info(f"processing {filing_url}")
         os.makedirs(folder_path, exist_ok=True)
@@ -77,23 +77,19 @@ def download_company_files(master_folder, cik, vars_df):
             html_master, index_content), folder_path)[1], 
             download_file(get_extracted_xml_path(
             html_master, filing_url, folder_path), folder_path)[1]]
-        xbrl_data, hierarchy = match_insert_values(vars_df, xbrl_paths)
-        with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
-            json.dump(xbrl_data, f, indent=4) 
-        with open(os.path.join(folder_path, "xbrl_pre.json"), 'w') as f:
-            json.dump(hierarchy, f, indent=4)
+        match_insert_values(vars_df, xbrl_paths, folder_path)
 
 
-def match_insert_values(vars_df, xbrl_paths):
+def match_insert_values(vars_df, xbrl_paths, folder_path):
     xbrl_data = {}
     hierarchy = {}
     for path in xbrl_paths:
         if not path:
             continue
-        xbrl_data, hierarchy = get_xbrl_data(path)
+        xbrl_data, hierarchy = get_xbrl_data(path, folder_path)
         if not xbrl_data or not xbrl_data['factList']:
             continue
-        results = map_datapoint_values(xbrl_data, vars_df, hierarchy)
+        results = map_datapoint_values(xbrl_data, vars_df, hierarchy, folder_path)
         if not results:
             continue
             # inserting data into database
@@ -101,19 +97,33 @@ def match_insert_values(vars_df, xbrl_paths):
         break
     else:
         logger.warning("got empty xbrl data")
-    return xbrl_data, hierarchy
 
 
-def get_xbrl_data(html_file_path):
+def get_xbrl_data(html_file_path, folder_path):
     server_url = "http://localhost:9000"
-    html_file_path = os.path.abspath(html_file_path)
-    html_file_path = html_file_path.replace("\\", "/")
-    req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=facts&media=json&factListCols=Label,unitRef,Dec,Value,Period,Dimensions"
-    r = requests.get(req_url)
-    xbrl_data = r.json()
-    req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=pre&media=json"
-    r = requests.get(req_url)
-    hierarchy = r.json()
+
+    if os.path.exists(os.path.join(folder_path, "xbrl_data.json")):
+        with open(os.path.join(folder_path, "xbrl_data.json"), 'r') as f:
+            xbrl_data = json.load(f)
+    else:
+        html_file_path = os.path.abspath(html_file_path)
+        html_file_path = html_file_path.replace("\\", "/")
+        req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=facts&media=json&factListCols=Label,unitRef,Dec,Value,Period,Dimensions"
+        r = requests.get(req_url)
+        xbrl_data = r.json()
+        with open(os.path.join(folder_path, "xbrl_data.json"), 'w') as f:
+            json.dump(xbrl_data, f, indent=4)
+    
+    if os.path.exists(os.path.join(folder_path, "xbrl_pre.json")):
+        with open(os.path.join(folder_path, "xbrl_pre.json"), 'r') as f:
+            hierarchy = json.load(f)
+    else:
+        req_url = f"{server_url}/rest/xbrl/view?file={html_file_path}&view=pre&media=json"
+        r = requests.get(req_url)
+        hierarchy = r.json()
+        with open(os.path.join(folder_path, "xbrl_pre.json"), 'w') as f:
+            json.dump(hierarchy, f, indent=4)
+
     return xbrl_data, hierarchy
 
 
@@ -155,6 +165,7 @@ if __name__ == "__main__":
     master_folder = 'data/current'
     ciks = ["FLT","FMC","F","FTNT","FTV","FOXA","FOX","BEN","FCX","GRMN","IT","GEHC","GEN","GNRC","GD","GE","GIS","GM","GPC","GILD","GL","GPN","GS","HAL","HIG","HAS","HCA","NUE","PEAK","HSIC","HSY","HES","HPE","HLT","HOLX","HD","HON","HRL","HST","HWM","HPQ","HUM","HBAN","HII","IBM","IEX","IDXX","ITW","ILMN","INCY","IR","PODD","INTC","ICE","IFF","IP","IPG","INTU","ISRG","IVZ","INVH","IQV","IRM","JBHT","JKHY","J","JNJ","JCI","JPM","JNPR","K","KVUE","KDP","KEY","KEYS","KMB","KIM","KMI","KLAC","KHC","KR","LHX","LH","LRCX","LW","LVS","LDOS","LEN","LIN","LYV","LKQ","LMT","L","LOW","LYB","MTB","MRO","MPC","MKTX","MAR","MMC","MLM","MAS","MA","MTCH","MKC","MCD","MCK","MDT","MRK","META","MET","MTD","MGM","MCHP","MU","MSFT","MAA","MRNA","MHK","MOH","TAP","MDLZ","MPWR","MNST","MCO","MS","MOS","MSI","MSCI","NDAQ","NTAP","NFLX","NEM","NWSA","NWS","NEE","NKE","NI","NDSN","NSC","NTRS","NOC","NCLH","NRG","NVDA","NVR","NXPI","ORLY","OXY","ODFL","OMC","ON","OKE","ORCL","OGN","OTIS","PCAR","PKG","PANW","PARA","PH","PAYX","PAYC","PYPL","PNR","PEP","PFE","PCG","PM","PSX","PNW","PXD","PNC","POOL","PPG","PPL","PFG","PG","PGR","PLD","PRU","PEG","PTC","PSA","PHM","QRVO","PWR","QCOM","DGX","RL","RJF","RTX","O","REG","REGN","RF","RSG","RMD","RVTY","RHI","ROK","ROL","ROP","ROST","RCL","SPGI","CRM","SBAC","SLB","STX","SEE","SRE","NOW","SHW","SPG","SWKS","SJM","SNA","SEDG","SO","LUV","SWK","SBUX","STT","STLD","STE","SYK","SYF","SNPS","SYY","TMUS","TROW","TTWO","TPR","TRGP","TGT","TEL","TDY","TFX","TER","TSLA","TXN","TXT","TMO","TJX","TSCO","TT","TDG","TRV","TRMB","TFC","TYL","TSN","USB","UDR","ULTA","UNP","UAL","UPS","URI","UNH","UHS","VLO","VTR","VRSN","VRSK","VZ","VRTX","VFC","VTRS","VICI","V","VMC","WAB","WBA","WMT","WBD","WM","WAT","WEC","WFC","WELL","WST","WDC","WRK","WY","WHR","WMB","WTW","GWW","WYNN","XEL","XYL","YUM","ZBRA","ZBH","ZION","ZTS"]
     # ciks = ['A']
+    ciks = ['AAPL']
     for cik in ciks:
         logger.info(f"processing company. symbol:{cik}")
         download_company_files(master_folder, cik, vars_df)

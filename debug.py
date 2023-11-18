@@ -1,20 +1,34 @@
-import os
+from arelle import ModelManager, Cntlr
 import json
-from datetime import datetime
-from glob import glob
 
 
-for comp_path in glob(r"data\current\*"):
-    result = ''
-    for xbrl_path in glob(os.path.join(comp_path, "*/xbrl_data.json")):
-        with open(xbrl_path, 'r') as f:
-            xbrl_data = json.load(f)
+cntlr = Cntlr.Cntlr(logFileName="logToPrint.txt")
+model_manager = ModelManager.initialize(cntlr)
+model_xbrl = model_manager.load(r"data\current\ACGL/000094748423000015/acgl-20221231.htm")
 
-        for dp in xbrl_data.get('factList', []):
-            if dp[2]["label"] == "dei:DocumentPeriodEndDate":
-                result = datetime.strptime(dp[2]["value"], "%Y-%m-%d").strftime("%m-%d")
-                break
-        if result:
-            break
-    print(f"sym: {comp_path}, res: {result}")
+
+
+
+
+
+
+# variable tablename tag topparent
+
+
+# check for AssetsAbstract, in facts and factsByQname. to get local variable name. or should go table extraction.
+
+# model_xbrl.factsByQname
+
+for fact in model_xbrl.factsByQname:
+    if str(fact) == 'us-gaap:AssetsAbstract':
+        a = 1
+
+
+# with open(r"")
+# hierarchy = 
+
+print("a")
+
+
+
 

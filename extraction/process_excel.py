@@ -3,6 +3,11 @@ from tqdm import tqdm
 from extraction.tables import *
 
 
+top3_table_tags = {'us-gaap:IncomeStatementAbstract': 'income statement',
+                   'us-gaap:StatementOfFinancialPositionAbstract': 'balance sheet',
+                   'us-gaap:StatementOfCashFlowsAbstract': 'cash flow'}
+
+
 def process_finance_excel(excel_path):
     workbook = openpyxl.load_workbook(excel_path)
     tables = []
@@ -37,7 +42,7 @@ def get_final_table_obj(sheet, table):
     
     columns = ["" for _ in range(len(table[0]))]
     for row in table[:col_index]:
-        for i in range(1,len(row)):
+        for i in range(len(row)):
             columns[i] = columns[i] + " " + row[i]
     for i in range(len(columns)):
         columns[i] = columns[i].strip()
@@ -59,6 +64,45 @@ def find_merged_cell_value(sheet, row, column):
         if (row, column) in range_.top: # merging only horizontally merged cells.
             return sheet.cell(row=range_.min_row, column=range_.min_col).value
     return ''
+
+
+def get_all_tags(head_list, tags):
+    for obj in head_list:
+        # if obj[2].get("type", "") == "Monetary":
+        tags.append(obj[1]['label'])
+        if len(obj[3:]) > 0:
+            tags = get_all_tags(obj[3:], tags)
+    return tags
+
+
+def get_table_tags_reported(hierarchy_data):
+    # code for fetching reported tags of each table. for now considering top3 tables.
+    tags_list = []
+    for table in hierarchy_data['presentationLinkbase']:
+        if table[3][1]['label'] in top3_table_tags.keys() and \
+            not 'Parenthetical' in table[1]['definition']:
+            tags = []
+            tags = get_all_tags(table[3][3:], tags)
+        # if table[3][1]['label'] not in tags_dict:
+        #     tags_dict[table[3][1]['label']] = []
+        # tags_dict[table[3][1]['label']] += tags
+            tags_list.append([top3_table_tags[table[3][1]['label']], 
+                          table[1]['definition'].split('-')[-1].strip(), tags])
+                              
+    return tags_list
+
+
+def classify_tables_excel(excel_tables, hierarchy_data):
+    tags_list = get_table_tags_reported(hierarchy_data)
+    excel_tables_dict = {}
+    for table in excel_tables:
+        for table_tags in tags_list:
+            if table_tags[1] in table['title'] and not 'Parenthetical' in table['title']:
+                if table_tags[0] not in excel_tables_dict:
+                    excel_tables_dict[table_tags[0]] = []
+                excel_tables_dict[table_tags[0]].append(table)
+                break
+    return excel_tables_dict
 
 
 if __name__ == "__main__":

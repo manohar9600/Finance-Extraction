@@ -1,4 +1,5 @@
-# file that reads files and inserts into postgres db
+# this file contains functions that can do xbrl search, xbrl calculcations
+# fetching values using gpt for missing values
 import os
 import psycopg2
 import json
@@ -8,19 +9,21 @@ from glob import glob
 from datetime import datetime
 import re
 from extraction.utils import convert_to_number
+from extraction.process_excel import process_finance_excel, classify_tables_excel
+from extraction.gpt_functions import get_value_gpt
 
 
 def get_prod_variables():
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
                             user="postgres",
-                            password="manu1234",
+                            password="manu@960",
                             port="5432")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM variables")
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
-    df = df[df['id'].isin([1])] # temporary line
+    # df = df[df['id'].isin([1])] # temporary line
     return df
 
 
@@ -28,7 +31,7 @@ def get_company_id(symbol):
     conn = psycopg2.connect(database="ProdDB",
                                 host="localhost",
                                 user="postgres",
-                                password="manu1234",
+                                password="manu@960",
                                 port="5432")
     cursor = conn.cursor()
     cursor.execute(f'SELECT id FROM companies where "Symbol"=\'{symbol}\'')
@@ -129,10 +132,9 @@ def get_formula_match(datapoint_values, row, xbrlid, document_period, hierarchy)
     return finalres
 
 
-def map_datapoint_values(datapoint_values, vars_df, hierarchy):
+def map_datapoint_values(datapoint_values, vars_df, hierarchy, folder_path):
     datapoint_values = datapoint_values['factList']
     results = []
-    empty_vars = []
     if not datapoint_values:
         return results
     document_period = get_xbrl_match(datapoint_values, None, 'dei:DocumentPeriodEndDate')['value']
@@ -145,24 +147,47 @@ def map_datapoint_values(datapoint_values, vars_df, hierarchy):
             row['match'] = match
             if match is not None:
                 break
-        if 'match' in row and row['match'] is not None:
-            results.append(row)
-        else:
-            empty_vars.append(row)
-    results = calculate_variable_formulas(results, empty_vars, document_period)
+        results.append(row)
+
+    results = calculate_missing_values(results, document_period, hierarchy, folder_path)
+    results = calculate_variable_formulas(results, document_period)
     return results
 
 
-def calculate_variable_formulas(results, empty_vars, document_period):
+def calculate_missing_values(results, document_period, hierarchy, folder_path):
+    excel_tables = process_finance_excel(os.path.join(folder_path, 'Financial_Report.xlsx'))
+    excel_tables_dict = classify_tables_excel(excel_tables, hierarchy)
+    for variable in results:
+        # ignoring formula variables, this fn focusing only on base values
+        if variable['formula'] is not None or variable.get('match', None) is not None:
+            continue
+        value = get_value_gpt(variable, document_period, 
+                              excel_tables_dict.get(variable['table'], []))
+        if value is None or not value:
+            continue
+        finalres = {
+                'label': '',
+                'value': str(value),
+                'endInstant': document_period,
+                'extraction': 'calculated'
+        }
+        variable['match'] = finalres
+        print(variable['variable'], str(value))
+    return results
+
+
+def calculate_variable_formulas(results, document_period):
     # this function caluculates values by using formula mentioned in database
     # supports only additions and subtractions
     values_dict = {}
-    for var in results:
-        values_dict[str(var['id'])] = var['match']['value']
-    for variable in empty_vars:
-        if variable['formula'] is None:
+    for variable in results:
+        if variable.get('match', None) is not None:
+            values_dict[str(variable['id'])] = variable['match']['value']
+    for variable in results:
+        if variable['formula'] is None or variable.get('match', None) is not None:
             continue
         calculated_value = 0
+        a = []
         for var in re.findall(r'[+-]?\d+', variable['formula']):
             value = values_dict.get(var.replace('+','').replace('-', ''), None)
             if value is None:
@@ -171,6 +196,7 @@ def calculate_variable_formulas(results, empty_vars, document_period):
                 calculated_value -= convert_to_number(value)
             else:
                 calculated_value += convert_to_number(value)
+            a.append(value)
         else:
             finalres = {
                 'label': '',
@@ -179,8 +205,7 @@ def calculate_variable_formulas(results, empty_vars, document_period):
                 'extraction': 'calculated'
             }
             variable['match'] = finalres
-            results.append(variable)
-
+            print('calculated: ' + variable['variable'], str(calculated_value))            
     return results
 
 
@@ -190,7 +215,7 @@ def insert_values(comp_sym, results):
     data_to_insert = []
     columns = ('value', 'scale', 'period', 'variableid', 'companyid', 'documenttype', 'type')
     for res in results:
-        if not 'match' in res or res['match'] is None:
+        if res.get('match', None) is None:
             continue
         data_to_insert.append([float(res['match']['value'].replace(',', '')), 1, 
                                datetime.strptime(res['match']['endInstant'], '%Y-%m-%d'),
@@ -199,7 +224,7 @@ def insert_values(comp_sym, results):
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
                             user="postgres",
-                            password="manu1234",
+                            password="manu@960",
                             port="5432")
     cursor = conn.cursor()
     cursor.executemany(f"INSERT INTO values({','.join(columns)}) VALUES({','.join(['%s']*len(columns))})", data_to_insert)
