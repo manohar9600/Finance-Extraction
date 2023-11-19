@@ -169,7 +169,7 @@ def calculate_missing_values(results, document_period, hierarchy, folder_path):
                 'label': '',
                 'value': str(value),
                 'endInstant': document_period,
-                'extraction': 'calculated'
+                'extraction': 'gpt'
         }
         variable['match'] = finalres
         print(variable['variable'], str(value))
