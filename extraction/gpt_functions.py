@@ -38,13 +38,13 @@ def get_value_gpt(variable, document_period, excel_tables, retry_count=0):
         markdown_table = generate_markdown_table(table['header'], table['body'])
         prompt = f'{markdown_table}\nwhat is the value of {variable["variable"]} of period {document_period}. output should contain only value along with quantum and if it is debit value change to absolute value. if there is no value just return "no".'
         try:
-            response = openai.ChatCompletion.create(
+            response = openai.chat.completions.create(
                 model="gpt-4-1106-preview",
                 messages=[
                     {"role": "user", "content": prompt},
                 ]
             )
-            result = response['choices'][0]['message']['content']
+            result = response.choices[0].message.content
             if 'no' in result:
                 continue
             try:
@@ -56,7 +56,7 @@ def get_value_gpt(variable, document_period, excel_tables, retry_count=0):
             if retry_count < 2:
                 logger.warning('failed to get response from openai api. sleeping for 5 secs')
                 time.sleep(5)
-                return get_value_gpt(variable, excel_tables, retry_count+1)
+                return get_value_gpt(variable, document_period, excel_tables, retry_count+1)
             else:
                 logger.error('failed to get response from openai api. sending out empty value')
     return None

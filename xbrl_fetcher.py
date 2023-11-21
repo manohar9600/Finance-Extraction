@@ -93,14 +93,14 @@ def match_insert_values(vars_df, xbrl_paths, folder_path):
         if not results:
             continue
             # inserting data into database
-            # insert_values(cik, results)
+        insert_values(cik, results)
         break
     else:
         logger.warning("got empty xbrl data")
 
 
 def get_xbrl_data(html_file_path, folder_path):
-    server_url = "http://localhost:9000"
+    server_url = "http://localhost:8080"
 
     if os.path.exists(os.path.join(folder_path, "xbrl_data.json")):
         with open(os.path.join(folder_path, "xbrl_data.json"), 'r') as f:

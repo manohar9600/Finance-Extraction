@@ -209,13 +209,27 @@ def calculate_variable_formulas(results, document_period):
     return results
 
 
+def is_record_exists(res, company_id):
+    conn = psycopg2.connect(database="ProdDB",
+                            host="localhost",
+                            user="postgres",
+                            password="manu@960",
+                            port="5432")
+    cursor = conn.cursor()
+    cursor.execute(f"select * from values where period='{datetime.strptime(res['match']['endInstant'], '%Y-%m-%d')}' and variableid='{res['id']}' and companyid='{company_id}' and documenttype='10K'")
+    result = cursor.fetchone()
+    if result:
+        return True
+    return False
+
+
 def insert_values(comp_sym, results):
     company_id = get_company_id(comp_sym)
 
     data_to_insert = []
     columns = ('value', 'scale', 'period', 'variableid', 'companyid', 'documenttype', 'type')
     for res in results:
-        if res.get('match', None) is None:
+        if res.get('match', None) is None or is_record_exists(res, company_id):
             continue
         data_to_insert.append([float(res['match']['value'].replace(',', '')), 1, 
                                datetime.strptime(res['match']['endInstant'], '%Y-%m-%d'),

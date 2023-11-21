@@ -27,7 +27,7 @@ class AllHandler(tornado.web.RequestHandler):
         conn = psycopg2.connect(database="ProdDB",
                                     host="localhost",
                                     user="postgres",
-                                    password="manu1234",
+                                    password="manu@960",
                                     port="5432")
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM companies")
@@ -46,7 +46,7 @@ def get_company_data(company_symbol):
     conn = psycopg2.connect(database="ProdDB",
                                 host="localhost",
                                 user="postgres",
-                                password="manu1234",
+                                password="manu@960",
                                 port="5432")
     cursor = conn.cursor()
     cursor.execute(f"SELECT id FROM companies where \"Symbol\"='{company_symbol}'")
