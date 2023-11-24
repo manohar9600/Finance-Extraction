@@ -61,13 +61,15 @@ with open('report.txt', 'w') as f:
 variables_df = get_table_data('variables')
 companies_df = get_table_data('companies')
 # values_df = get_table_data('values')
+non_empty_companies = []
 
 for _, company_row in tqdm(companies_df.iterrows(), total=companies_df.shape[0]):
     # code for finding companies whose data is not present in database
     if not check_value_existence('values', 'companyid', company_row['id']):
         # log_msg(f'{company_row["Symbol"]} not present in database')
         continue
-        
+
+    non_empty_companies.append(company_row['Symbol'])
     # code for checking if there any file's data is not inserted into database or not.
     values_df = get_values_data(company_row['id'])
     periods = values_df['period'].unique()
@@ -125,4 +127,6 @@ for _, company_row in tqdm(companies_df.iterrows(), total=companies_df.shape[0])
     #                 log_msg(f"variable:{variable} | symbol:{company_row['Symbol']} | period: {period_str} | duplicate data with different values")
                 # else:
                 #     log_msg(f"variable:{variable} | symbol:{company_row['Symbol']} | period: {period_str} | duplicate data with same values")
-                    
+
+
+# print(non_empty_companies)

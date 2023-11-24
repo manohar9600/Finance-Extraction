@@ -52,7 +52,8 @@ def get_value_gpt(variable, document_period, excel_tables, retry_count=0):
                 return result
             except:
                 continue
-        except:
+        except Exception as e:
+            logger.error(f'error from openai function: {e}')
             if retry_count < 2:
                 logger.warning('failed to get response from openai api. sleeping for 5 secs')
                 time.sleep(5)

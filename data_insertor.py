@@ -17,7 +17,7 @@ def get_prod_variables():
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
                             user="postgres",
-                            password="manu@960",
+                            password="manu1234",
                             port="5432")
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM variables")
@@ -31,10 +31,10 @@ def get_company_id(symbol):
     conn = psycopg2.connect(database="ProdDB",
                                 host="localhost",
                                 user="postgres",
-                                password="manu@960",
+                                password="manu1234",
                                 port="5432")
     cursor = conn.cursor()
-    cursor.execute(f'SELECT id FROM companies where "Symbol"=\'{symbol}\'')
+    cursor.execute(f'SELECT id FROM companies where "Symbol"=\'{symbol.upper()}\'')
     comp_id = cursor.fetchone()[0]
     conn.close()
     return comp_id
@@ -172,7 +172,7 @@ def calculate_missing_values(results, document_period, hierarchy, folder_path):
                 'extraction': 'gpt'
         }
         variable['match'] = finalres
-        print(variable['variable'], str(value))
+        logger.debug('gpt value:' + variable['variable'] + ' ' + str(value))
     return results
 
 
@@ -183,21 +183,16 @@ def calculate_variable_formulas(results, document_period):
     for variable in results:
         if variable.get('match', None) is not None:
             values_dict[str(variable['id'])] = variable['match']['value']
+
+    inter_dependency_boolean = False
+    dependent_ids = [] # list to track sub ids, if any empty id which is required is calculated after then this function repeats.
     for variable in results:
         if variable['formula'] is None or variable.get('match', None) is not None:
             continue
-        calculated_value = 0
-        a = []
-        for var in re.findall(r'[+-]?\d+', variable['formula']):
-            value = values_dict.get(var.replace('+','').replace('-', ''), None)
-            if value is None:
-                break
-            if "-" in var:
-                calculated_value -= convert_to_number(value)
-            else:
-                calculated_value += convert_to_number(value)
-            a.append(value)
-        else:
+        for formula in variable['formula'].split('|'):
+            calculated_value = calculate_formula(formula, values_dict)
+            if calculated_value is None:
+                continue
             finalres = {
                 'label': '',
                 'value': str(calculated_value),
@@ -205,15 +200,37 @@ def calculate_variable_formulas(results, document_period):
                 'extraction': 'calculated'
             }
             variable['match'] = finalres
-            print('calculated: ' + variable['variable'], str(calculated_value))            
+            logger.debug('calculated: ' + variable['variable'] + " " + str(calculated_value))
+            if not inter_dependency_boolean and str(variable['id']) in dependent_ids:
+                inter_dependency_boolean = True
+            break
+        else:
+            dependent_ids += re.findall("\d+", variable['formula'])
+    
+    if inter_dependency_boolean:
+        logger.debug('inter-dependency among formulas detected. re-calling calculation function')
+        results = calculate_variable_formulas(results, document_period)
     return results
+
+
+def calculate_formula(formula, values_dict):
+    calculated_value = 0
+    for var in re.findall(r'[+-]?\d+', formula):
+        value = values_dict.get(var.replace('+','').replace('-', ''), None)
+        if value is None:
+            return None
+        if "-" in var:
+            calculated_value -= convert_to_number(value)
+        else:
+            calculated_value += convert_to_number(value)
+    return calculated_value
 
 
 def is_record_exists(res, company_id):
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
                             user="postgres",
-                            password="manu@960",
+                            password="manu1234",
                             port="5432")
     cursor = conn.cursor()
     cursor.execute(f"select * from values where period='{datetime.strptime(res['match']['endInstant'], '%Y-%m-%d')}' and variableid='{res['id']}' and companyid='{company_id}' and documenttype='10K'")
@@ -238,7 +255,7 @@ def insert_values(comp_sym, results):
     conn = psycopg2.connect(database="ProdDB",
                             host="localhost",
                             user="postgres",
-                            password="manu@960",
+                            password="manu1234",
                             port="5432")
     cursor = conn.cursor()
     cursor.executemany(f"INSERT INTO values({','.join(columns)}) VALUES({','.join(['%s']*len(columns))})", data_to_insert)
