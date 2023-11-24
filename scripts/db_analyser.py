@@ -129,4 +129,4 @@ for _, company_row in tqdm(companies_df.iterrows(), total=companies_df.shape[0])
                 #     log_msg(f"variable:{variable} | symbol:{company_row['Symbol']} | period: {period_str} | duplicate data with same values")
 
 
-# print(non_empty_companies)
+print(non_empty_companies)

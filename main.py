@@ -7,7 +7,7 @@ from datetime import date, datetime
 from secedgar import CompanyFilings, FilingType
 from bs4 import BeautifulSoup
 from loguru import logger
-from data_insertor import map_datapoint_values, insert_values, get_prod_variables
+from data_insertor import DataInsertor, get_prod_variables
 
 
 def get_filing_urls(cik):
@@ -53,6 +53,7 @@ def download_company_files(master_folder, cik, vars_df):
     for filing_url in filing_urls:
         process_filing_url(filing_url, master_folder, cik, vars_df)
 
+
 def process_filing_url(filing_url, master_folder, cik, vars_df):
     html_master = "/".join(filing_url.split('/')[:-1])
     index_url = filing_url.replace(".txt", "-index-headers.html")
@@ -93,14 +94,26 @@ def match_insert_values(vars_df, xbrl_paths, folder_path, cik):
         xbrl_data, hierarchy = get_xbrl_data(path, folder_path)
         if not xbrl_data or not xbrl_data['factList']:
             continue
-        results = map_datapoint_values(xbrl_data, vars_df, hierarchy, folder_path)
+        data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
+        results = data_insertor.map_datapoint_values(vars_df, folder_path)
         if not results:
             continue
         # inserting data into database
-        insert_values(cik, results)
+        # data_insertor.insert_values(results)
         break
     else:
         logger.warning("got empty xbrl data")
+    
+
+def reprocess_folder(folder_path, vars_df, cik):
+    # function to calculate values without download and without fetching xbrl data
+    xbrl_data, hierarchy = get_xbrl_data('', folder_path)
+    if not xbrl_data or not xbrl_data['factList']:
+        return
+    data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
+    results = data_insertor.map_datapoint_values(vars_df, folder_path)
+    # inserting data into database
+    # data_insertor.insert_values(results)
 
 
 def get_xbrl_data(html_file_path, folder_path):
@@ -165,26 +178,29 @@ def get_extracted_xml_path(html_master, filing_url, folder_path):
 
 
 if __name__ == "__main__":
+    from glob import glob
+
     vars_df = get_prod_variables()
     master_folder = 'data/current'
     ciks = ["FLT","FMC","F","FTNT","FTV","FOXA","FOX","BEN","FCX","GRMN","IT","GEHC","GEN","GNRC","GD","GE","GIS","GM","GPC","GILD","GL","GPN","GS","HAL","HIG","HAS","HCA","NUE","PEAK","HSIC","HSY","HES","HPE","HLT","HOLX","HD","HON","HRL","HST","HWM","HPQ","HUM","HBAN","HII","IBM","IEX","IDXX","ITW","ILMN","INCY","IR","PODD","INTC","ICE","IFF","IP","IPG","INTU","ISRG","IVZ","INVH","IQV","IRM","JBHT","JKHY","J","JNJ","JCI","JPM","JNPR","K","KVUE","KDP","KEY","KEYS","KMB","KIM","KMI","KLAC","KHC","KR","LHX","LH","LRCX","LW","LVS","LDOS","LEN","LIN","LYV","LKQ","LMT","L","LOW","LYB","MTB","MRO","MPC","MKTX","MAR","MMC","MLM","MAS","MA","MTCH","MKC","MCD","MCK","MDT","MRK","META","MET","MTD","MGM","MCHP","MU","MSFT","MAA","MRNA","MHK","MOH","TAP","MDLZ","MPWR","MNST","MCO","MS","MOS","MSI","MSCI","NDAQ","NTAP","NFLX","NEM","NWSA","NWS","NEE","NKE","NI","NDSN","NSC","NTRS","NOC","NCLH","NRG","NVDA","NVR","NXPI","ORLY","OXY","ODFL","OMC","ON","OKE","ORCL","OGN","OTIS","PCAR","PKG","PANW","PARA","PH","PAYX","PAYC","PYPL","PNR","PEP","PFE","PCG","PM","PSX","PNW","PXD","PNC","POOL","PPG","PPL","PFG","PG","PGR","PLD","PRU","PEG","PTC","PSA","PHM","QRVO","PWR","QCOM","DGX","RL","RJF","RTX","O","REG","REGN","RF","RSG","RMD","RVTY","RHI","ROK","ROL","ROP","ROST","RCL","SPGI","CRM","SBAC","SLB","STX","SEE","SRE","NOW","SHW","SPG","SWKS","SJM","SNA","SEDG","SO","LUV","SWK","SBUX","STT","STLD","STE","SYK","SYF","SNPS","SYY","TMUS","TROW","TTWO","TPR","TRGP","TGT","TEL","TDY","TFX","TER","TSLA","TXN","TXT","TMO","TJX","TSCO","TT","TDG","TRV","TRMB","TFC","TYL","TSN","USB","UDR","ULTA","UNP","UAL","UPS","URI","UNH","UHS","VLO","VTR","VRSN","VRSK","VZ","VRTX","VFC","VTRS","VICI","V","VMC","WAB","WBA","WMT","WBD","WM","WAT","WEC","WFC","WELL","WST","WDC","WRK","WY","WHR","WMB","WTW","GWW","WYNN","XEL","XYL","YUM","ZBRA","ZBH","ZION","ZTS"]
-    # ciks = ['A']
-    ciks = ['DAL', 'DE', 'DFS', 'DG', 'DHI', 'DHR', 'DIS', 'DLR', 'DOV', 'DOW', 'DPZ', 'DRI', 'DTE', 'DVA', 'DVN', 'DXCM', 'ED', 'FANG', 'GLW', 'KO', 'STZ', 'XRAY', 'ADSK', 'AVB', 'BAC', 'BKNG', 'C', 'CF', 'CINF', 'CTSH', 'DLTR']
+    ciks = ['AAPL', 'ABBV']
+    # ciks = ['DAL', 'DE', 'DFS', 'DG', 'DHI', 'DHR', 'DIS', 'DLR', 'DOV', 'DOW', 'DPZ', 'DRI', 'DTE', 'DVA', 'DVN', 'DXCM', 'ED', 'FANG', 'GLW', 'KO', 'STZ', 'XRAY', 'ADSK', 'AVB', 'BAC', 'BKNG', 'C', 'CF', 'CINF', 'CTSH', 'DLTR']
 
     # for cik in ciks:
     #     logger.info(f"processing company. symbol:{cik}")
     #     download_company_files(master_folder, cik, vars_df)
 
-    filings = [
-        'https://www.sec.gov/Archives/edgar/data/1551152/000155115222000007/0001551152-22-000007.txt',
-        'abbv'
-    ]
-    process_filing_url(filings[0], master_folder, filings[1], vars_df)
-    
+    # processing single filing url
+    # filings = [
+    #     'https://www.sec.gov/Archives/edgar/data/1551152/000155115222000007/0001551152-22-000007.txt',
+    #     'abbv'
+    # ]
+    # process_filing_url(filings[0], master_folder, filings[1], vars_df)
 
-    # from glob import glob
-    # ciks = [os.path.basename(folder) for folder in glob("data/current/*")]
-    # ciks = ciks[ciks.index('D'):]
-    # for cik in ciks:
-    #     logger.info(f"processing company. symbol:{cik}")
-    #     download_company_files(master_folder, cik, vars_df)
+    # reprocessing a folder
+    folder_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\ABBV\000155115222000007"
+    for folder_path in glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\*\*"):
+        logger.info(f"processing {folder_path}")
+        cik = os.path.basename(os.path.dirname(folder_path))
+        reprocess_folder(folder_path, vars_df, cik)
+        break
