@@ -47,6 +47,7 @@ class DataInsertor:
         self.xbrl_data = xbrl_data["factList"]
         self.hierarchy = hierarchy
         self.document_period = self.get_xbrl_match(None, "dei:DocumentPeriodEndDate")["value"]
+        self.company_values = self.get_company_values() # contains company data of document_period
     
     def get_company_id(self):
         conn = psycopg2.connect(
@@ -66,13 +67,15 @@ class DataInsertor:
         results = []
         for _, row in vars_df.iterrows():
             row = row.to_dict()
+            match = self.is_record_exists(row)
             for xbrlid in row["xbrlids"]:
-                match = self.get_xbrl_match(row, xbrlid, self.document_period)
+                if match is None:
+                    match = self.get_xbrl_match(row, xbrlid, self.document_period)
                 if match is None:
                     match = self.get_formula_match(row, xbrlid)
-                row["match"] = match
                 if match is not None:
                     break
+            row["match"] = match
             results.append(row)
 
         results = self.calculate_missing_values(results, folder_path)
@@ -228,7 +231,7 @@ class DataInsertor:
             logger.debug(
                 "inter-dependency among formulas detected. re-calling calculation function"
             )
-            results = self.calculate_variable_formulas(results, self.document_period)
+            results = self.calculate_variable_formulas(results)
         return results
 
     def calculate_formula(self, formula, values_dict):
@@ -243,7 +246,13 @@ class DataInsertor:
                 calculated_value += convert_to_number(value)
         return calculated_value
 
-    def is_record_exists(self, res):
+    def is_record_exists(self, res) -> dict:
+        var_row = self.company_values[self.company_values['variableid'] == res['id']]
+        if not var_row.empty:
+            return {'value': var_row.iloc[-1]['value']}
+        return None
+
+    def get_company_values(self) -> pd.DataFrame:
         conn = psycopg2.connect(
             database="ProdDB",
             host="localhost",
@@ -253,12 +262,10 @@ class DataInsertor:
         )
         cursor = conn.cursor()
         cursor.execute(
-            f"select * from values where period='{datetime.strptime(res['match']['endInstant'], '%Y-%m-%d')}' and variableid='{res['id']}' and companyid='{self.company_id}' and documenttype='10K'"
+            f"select * from values where period='{datetime.strptime(self.document_period, '%Y-%m-%d')}' and companyid='{self.company_id}' and documenttype='10K'"
         )
-        result = cursor.fetchone()
-        if result:
-            return True
-        return False
+        df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
+        return df 
 
     def insert_values(self, results):
         data_to_insert = []
@@ -300,7 +307,8 @@ class DataInsertor:
         )
         conn.commit()
         conn.close()
-        logger.info("inserted values into database")
+        if data_to_insert:
+            logger.info("inserted values into database")
 
 
 # if __name__ == "__main__":
