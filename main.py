@@ -113,7 +113,7 @@ def reprocess_folder(folder_path, vars_df, cik):
     data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
     results = data_insertor.map_datapoint_values(vars_df, folder_path)
     # inserting data into database
-    # data_insertor.insert_values(results)
+    data_insertor.insert_values(results)
 
 
 def get_xbrl_data(html_file_path, folder_path):
@@ -199,8 +199,7 @@ if __name__ == "__main__":
 
     # reprocessing a folder
     folder_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\ABBV\000155115222000007"
-    for folder_path in glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\*\*"):
+    for folder_path in glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\ACGL\*"):
         logger.info(f"processing {folder_path}")
         cik = os.path.basename(os.path.dirname(folder_path))
         reprocess_folder(folder_path, vars_df, cik)
-        break
