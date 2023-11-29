@@ -45,7 +45,8 @@ class DataInsertor:
         self.symbol = symbol.upper()
         self.company_id = self.get_company_id()
         self.xbrl_data = xbrl_data["factList"]
-        self.hierarchy = hierarchy
+        self.hierarchy = hierarchy["presentationLinkbase"]
+        self.xbrlid_types = self.map_xbrlid_types(self.hierarchy, {})
         self.document_period = self.get_xbrl_match(None, "dei:DocumentPeriodEndDate")["value"]
         self.company_values = self.get_company_values() # contains company data of document_period
     
@@ -63,6 +64,15 @@ class DataInsertor:
         conn.close()
         return comp_id
 
+    def map_xbrlid_types(self, objects, xbrlid_types):        
+        for obj in objects:
+            label = obj[1].get("label", "")
+            if label:
+                xbrlid_types[label] = obj[2].get("pref.Label", "")
+
+            xbrlid_types = self.map_xbrlid_types(obj[3:], xbrlid_types)
+        return xbrlid_types
+    
     def map_datapoint_values(self, vars_df, folder_path):
         results = []
         for _, row in vars_df.iterrows():
@@ -103,6 +113,7 @@ class DataInsertor:
                 ):
                     matches.append(dp[2])
 
+        best_match = None
         if matches:
             if document_period is None:
                 best_match = max(
@@ -110,13 +121,23 @@ class DataInsertor:
                     key=lambda x: datetime.strptime(x["endInstant"], "%Y-%m-%d"),
                 )
                 best_match["extraction"] = "extracted"
-                return best_match
             else:
                 for match in matches:
                     if match["endInstant"] == document_period:
                         match["extraction"] = "extracted"
-                        return match
-        return None
+                        best_match = match
+                        break
+        
+        if best_match is None:
+            return None
+
+        # converting negated values, adding "-" to them
+        if 'negated' in self.xbrlid_types[best_match['label']]:
+            if "-" in best_match['value']:
+                best_match['value'] = best_match['value'].raplace("-", "")
+            else:
+                best_match['value'] = "-" + best_match['value']
+        return best_match
 
     def get_formula_match(self, row, xbrlid):
         def _find_match(obj, xbrlid):
@@ -145,14 +166,13 @@ class DataInsertor:
                 return sum([convert_to_number(s) for s in sub_item_values])
             return None
 
-        hierarchy = self.hierarchy["presentationLinkbase"]
         match = None
         top3_tables = [
             "us-gaap:IncomeStatementAbstract",
             "us-gaap:StatementOfFinancialPositionAbstract",
             "us-gaap:StatementOfCashFlowsAbstract",
         ]
-        for table in hierarchy:
+        for table in self.hierarchy:
             table_identifier = table[3][1]["name"]
             if table_identifier not in top3_tables:
                 continue

@@ -78,7 +78,7 @@ def get_all_tags(head_list, tags):
 def get_table_tags_reported(hierarchy_data):
     # code for fetching reported tags of each table. for now considering top3 tables.
     tags_list = []
-    for table in hierarchy_data['presentationLinkbase']:
+    for table in hierarchy_data:
         if table[3][1]['label'] in top3_table_tags.keys() and \
             not 'Parenthetical' in table[1]['definition']:
             tags = []

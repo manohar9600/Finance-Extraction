@@ -36,10 +36,10 @@ def check_gpt_match(text1, text2):
 def get_value_gpt(variable, document_period, excel_tables, retry_count=0):
     for table in excel_tables:
         markdown_table = generate_markdown_table(table['header'], table['body'])
-        prompt = f'{markdown_table}\nwhat is the value of {variable["variable"]} of period {document_period}. output should contain only value along with quantum and if it is debit value change to absolute value. if there is no value just return "no".'
+        prompt = f'{markdown_table}\nwhat is the value of {variable["variable"]} of period {document_period}. output should contain only value along with quantum. if there is no value just return "no".'
         try:
             response = openai.chat.completions.create(
-                model="gpt-4-1106-preview",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "user", "content": prompt},
                 ]
