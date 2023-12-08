@@ -8,6 +8,7 @@ from secedgar import CompanyFilings, FilingType
 from bs4 import BeautifulSoup
 from loguru import logger
 from data_insertor import DataInsertor, get_prod_variables
+from extraction.db_functions import MinioDBFunctions, DBFunctions
 
 
 def get_filing_urls(cik):
@@ -83,6 +84,8 @@ def process_filing_url(filing_url, master_folder, cik, vars_df):
         download_file(get_extracted_xml_path(
         html_master, filing_url, folder_path), folder_path)[1]]
     match_insert_values(vars_df, xbrl_paths, folder_path, cik)
+    # fetch date from results
+    # use date to store in metadata in db and in minio
 
 
 def match_insert_values(vars_df, xbrl_paths, folder_path, cik):
@@ -98,11 +101,17 @@ def match_insert_values(vars_df, xbrl_paths, folder_path, cik):
         results = data_insertor.map_datapoint_values(vars_df, folder_path)
         if not results:
             continue
+
         # inserting data into database
         # data_insertor.insert_values(results)
+
+        # uploading files to bucket
+        stored_folder = MinioDBFunctions("secreports").upload_folder(folder_path)
+        DBFunctions().add_document_metadata(cik, data_insertor.document_period, '10K', stored_folder)
         break
     else:
-        logger.warning("got empty xbrl data")
+        raise ValueError('failed to get xbrl data')
+    return data_insertor
     
 
 def reprocess_folder(folder_path, vars_df, cik):
@@ -112,8 +121,13 @@ def reprocess_folder(folder_path, vars_df, cik):
         return
     data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
     results = data_insertor.map_datapoint_values(vars_df, folder_path)
+
+    # # uploading files to bucket
+    # stored_folder = MinioDBFunctions("secreports").upload_folder(cik, folder_path)
+    # DBFunctions().add_document_metadata(cik, data_insertor.document_period, '10K', stored_folder)
+
     # inserting data into database
-    data_insertor.insert_values(results)
+    # data_insertor.insert_values(results)
 
 
 def get_xbrl_data(html_file_path, folder_path):
@@ -198,8 +212,9 @@ if __name__ == "__main__":
     # process_filing_url(filings[0], master_folder, filings[1], vars_df)
 
     # reprocessing a folder
-    folder_path = r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\ABBV\000155115222000007"
-    for folder_path in glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\ACGL\*"):
+    folder_paths = glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\*\*")
+    # folder_paths = [r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\000032019321000105"]
+    for folder_path in folder_paths:
         logger.info(f"processing {folder_path}")
         cik = os.path.basename(os.path.dirname(folder_path))
         reprocess_folder(folder_path, vars_df, cik)
