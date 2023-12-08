@@ -1,10 +1,9 @@
 import tornado.ioloop
 import tornado.web
-import os
 import json
-from glob import glob
 import pandas as pd
 import psycopg2
+from extraction.db_functions import MinioDBFunctions
 from loguru import logger
 
 
@@ -52,11 +51,33 @@ def get_company_data(company_symbol):
     cursor.execute(f"SELECT id FROM companies where \"Symbol\"='{company_symbol}'")
     comp_id = cursor.fetchone()[0]
     
-    query = f"WITH FilteredOrders AS (SELECT * FROM values WHERE values.companyid = {comp_id}) SELECT * FROM FilteredOrders AS fo RIGHT JOIN variables ON fo.variableid = variables.id ORDER by variables.id"
+    query = f"WITH FilteredOrders AS (SELECT *, type as valuetye FROM values WHERE values.companyid = {comp_id})\
+        SELECT * FROM FilteredOrders AS fo RIGHT JOIN variables ON fo.variableid = variables.id\
+            LEFT JOIN documents ON fo.documentid = documents.id ORDER by variables.id"
     cursor.execute(query)
     df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
     conn.close()
     return df
+
+
+def get_cleaned_row(row_dict):
+    minio_server_url = 'http://192.168.1.42:9000/secreports/'
+    required_fields = ["value", "type"]
+    final_dict = {}
+    for key in row_dict:
+        if key in required_fields:
+            final_dict[key] = row_dict[key]
+    files = MinioDBFunctions('secreports').list_objects(row_dict['folderlocation'])
+    # temporary solution
+    target_file = ''
+    for file in files:
+        if 'index' in file.split('/')[-1]:
+            continue
+        if '.htm' in file.split('/')[-1] or '.html' in file.split('/')[-1]:
+            target_file = minio_server_url + file
+            break
+    final_dict['filelocation'] = target_file
+    return final_dict
 
 
 class CompanyData(tornado.web.RequestHandler):
@@ -85,12 +106,12 @@ class CompanyData(tornado.web.RequestHandler):
             table = []
             for _, grp in table_grp.groupby('variable', sort=False):
                 table_row = ["" for _ in range(len(columns)+1)]
-                table_row[0] = grp.iloc[0]['variable']
+                table_row[0] = {'value': grp.iloc[0]['variable']}
                 for _, row in grp.iterrows():
                     if row['period'] is None:
                         continue
                     index = columns.index(row['period'])
-                    table_row[index+1] = row['value']
+                    table_row[index+1] = get_cleaned_row(row.to_dict())
                 table.append(table_row)
 
             table = {

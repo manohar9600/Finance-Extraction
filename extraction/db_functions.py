@@ -1,6 +1,5 @@
-import sys
 import os
-from io import BytesIO
+import mimetypes
 import psycopg2
 import pandas as pd
 from glob import glob
@@ -66,21 +65,25 @@ class MinioDBFunctions:
     def __init__(self, bucket_name) -> None:
         self.bucket_name = bucket_name
 
-    def upload_file_to_minio(self, object_name, file_path):
+    def get_client(self):
         client = Minio(
             "192.168.1.42:9000",
             access_key="1T8p7bcYuD4DgWSRrUGn",
             secret_key="b849fJXr4IjXqATibsiljbrKWA1VrFK4XspD2Hn1",
             secure=False,  # Set to False if you are not using https
         )
+        
+        return client
 
-        # with open(file_path, "rb") as file_data:
+    def upload_file_to_minio(self, object_name, file_path):
+        client = self.get_client()
         client.fput_object(
             self.bucket_name,
             object_name,
-            file_path
+            file_path,
+            content_type=mimetypes.guess_type(file_path)[0]
         )
-    
+
     def upload_folder(self, cik, folder_path):
         target_folder = os.path.join(cik, os.path.basename(folder_path))
         for file_path in glob(os.path.join(folder_path, "*")):
@@ -89,3 +92,10 @@ class MinioDBFunctions:
             self.upload_file_to_minio(object_name, file_path)
         logger.info(f'uploaded files to bucket. data folder:{target_folder}')
         return target_folder
+
+    def list_objects(self, folder_name):
+        folder_name = folder_name.replace(os.path.sep, '/')
+        client = self.get_client()
+        objects = client.list_objects(self.bucket_name, prefix=folder_name, recursive=True)
+        objects = [obj.object_name for obj in objects]
+        return objects
