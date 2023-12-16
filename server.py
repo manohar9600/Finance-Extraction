@@ -4,6 +4,7 @@ import json
 import pandas as pd
 import psycopg2
 from extraction.db_functions import MinioDBFunctions
+from extraction.data_processor import extract_segment_information
 from loguru import logger
 
 
@@ -97,6 +98,17 @@ class CompanyData(tornado.web.RequestHandler):
         logger.info("--- company data request received ---")
         data = json.loads(self.request.body)
         logger.info(f"got request for data of company:{data['company']}")
+        tables = []
+        data_type = data.get('tablesType', '').lower()
+        if data_type == 'financial':
+            tables = self.get_finance_tables(data)
+        elif data_type == 'segment':
+            tables = extract_segment_information(data['company'])
+
+        self.set_header('Content-Type', 'application/json')
+        self.write({'tables': tables})
+            
+    def get_finance_tables(self, data):
         company_data = get_company_data(data['company'])
         columns = company_data
         df = get_company_data(data['company'])
@@ -122,8 +134,7 @@ class CompanyData(tornado.web.RequestHandler):
             tables.append(table)
         pref_dict = {'income statement': 1, 'balance sheet': 2, 'cash flow': 3}
         tables = sorted(tables, key=lambda x:pref_dict[x['class']])
-        self.set_header('Content-Type', 'application/json')
-        self.write({'tables': tables})
+        return tables
 
 
 class Metadata(tornado.web.RequestHandler):
@@ -160,7 +171,7 @@ def make_app():
 
 if __name__ == "__main__":
     app = make_app()
-    port = 8888
+    port = 9002
     app.listen(port)
     logger.info(f"listening on port {port}")
     tornado.ioloop.IOLoop.current().start()

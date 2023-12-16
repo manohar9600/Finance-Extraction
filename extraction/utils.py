@@ -66,10 +66,11 @@ def convert_to_number(number_string):
     number_string = str(number_string).replace(",","").strip()
     if number_string.replace('(', '').replace(')', '') == 'nil':
         return 0
+    if number_string.strip() == '':
+        return 0
     # TODO convert (num) to negative numbers
     try:
         number = float(number_string)
     except:
         return None
     return number
-    
