@@ -3,7 +3,7 @@ import tornado.web
 import json
 import pandas as pd
 import psycopg2
-from extraction.db_functions import MinioDBFunctions
+from extraction.db_functions import MinioDBFunctions, get_segment_data
 from extraction.data_processor import extract_segment_information
 from loguru import logger
 
@@ -103,7 +103,7 @@ class CompanyData(tornado.web.RequestHandler):
         if data_type == 'financial':
             tables = self.get_finance_tables(data)
         elif data_type == 'segment':
-            tables = extract_segment_information(data['company'])
+            tables = get_segment_data(data['company'])
 
         self.set_header('Content-Type', 'application/json')
         self.write({'tables': tables})

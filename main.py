@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 from extraction.data_insertor import DataInsertor, get_prod_variables
 from extraction.db_functions import MinioDBFunctions, DBFunctions
+from extraction.data_processor import extract_segment_information
 
 
 def get_filing_urls(cik):
@@ -191,6 +192,10 @@ def get_extracted_xml_path(html_master, filing_url, folder_path):
     return "https://www.sec.gov" + link
 
 
+def process_segment_information(symbol, folder_path):
+    extract_segment_information(symbol, folder_path)
+
+
 if __name__ == "__main__":
     from glob import glob
 
@@ -211,10 +216,21 @@ if __name__ == "__main__":
     # ]
     # process_filing_url(filings[0], master_folder, filings[1], vars_df)
 
-    # reprocessing a folder
-    folder_paths = glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\*")
-    # folder_paths = [r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\000032019321000105"]
-    for folder_path in folder_paths:
-        logger.info(f"processing {folder_path}")
-        cik = os.path.basename(os.path.dirname(folder_path))
-        reprocess_folder(folder_path, vars_df, cik)
+    # # reprocessing a folder
+    # folder_paths = glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\*")
+    # # folder_paths = [r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\AAPL\000032019321000105"]
+    # for folder_path in folder_paths:
+    #     logger.info(f"processing {folder_path}")
+    #     cik = os.path.basename(os.path.dirname(folder_path))
+    #     reprocess_folder(folder_path, vars_df, cik)
+
+
+    # reprocessing segment information
+    company_folders = glob(r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\*")
+    for company_folder in company_folders:
+        file_path = os.path.join(company_folder, "segment_tables.json")
+        if os.path.exists(file_path):
+            continue
+        logger.info(f"processing {company_folder}")
+        cik = os.path.basename(company_folder)
+        process_segment_information(cik, company_folder)

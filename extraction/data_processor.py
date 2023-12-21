@@ -20,8 +20,8 @@ def get_segment_lineitems(data):
                 member = fact[2]["dimensions"][reported_axis]
                 if (
                     axis in reported_axis
-                    and "us-gaap:ProductMember" != member
-                    and "us-gaap:ServiceMember" != member
+                    # and "us-gaap:ProductMember" != member
+                    # and "us-gaap:ServiceMember" != member
                 ):
                     segment_items.append(fact)
                     break
@@ -43,6 +43,8 @@ def extract_revenue_information(results, segment_items, doc_period):
         if fact[2]["label"] not in revenue_xbrls or fact[2]["endInstant"] != doc_period:
             continue
         axis_list = list(fact[2]["dimensions"].keys())
+        if len(axis_list) >= 2:
+            continue
         for axis in ref_axis:
             for reported_axis in axis_list:
                 if axis not in reported_axis:
@@ -68,16 +70,18 @@ def extract_revenue_information(results, segment_items, doc_period):
     return results
 
 
-def extract_segment_information(symbol):
+def extract_segment_information(symbol, parent_folder):
     results = {}
-    folder_paths = glob(
-        rf"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current\{symbol}\*"
-    )
+    folder_paths = glob(os.path.join(parent_folder, '*'))
     for folder_path in folder_paths:
+        if not os.path.isdir(folder_path):
+            continue
         with open(os.path.join(folder_path, "xbrl_data.json")) as f:
             xbrl_data = json.load(f)
         with open(os.path.join(folder_path, "xbrl_pre.json")) as f:
             hierarchy = json.load(f)
+        if not xbrl_data or not xbrl_data["factList"]:
+            continue
         doc_period = DataInsertor(symbol, xbrl_data, hierarchy).document_period
         segment_items = get_segment_lineitems(xbrl_data)
         results = extract_revenue_information(results, segment_items, doc_period)
@@ -97,5 +101,7 @@ def extract_segment_information(symbol):
 
         table = {"class": key, "header": [""]+list(df.columns)[1:], "body": body}
         segment_tables.append(table)
-    return segment_tables
-
+    
+    file_path = os.path.join(parent_folder, "segment_tables.json")
+    with open(file_path, "w") as f:
+        json.dump(segment_tables, f, indent=4)

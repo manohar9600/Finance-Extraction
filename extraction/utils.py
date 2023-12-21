@@ -74,3 +74,13 @@ def convert_to_number(number_string):
     except:
         return None
     return number
+
+
+def generate_markdown_table(table):
+    columns = table['header']
+    table_body = table['body']
+    header_row = "| " + " | ".join(columns) + " |"
+    separator_row = "| " + " | ".join(['---'] * len(columns)) + " |"
+    body_rows = ["| " + " | ".join(str(item['value']) for item in row) + " |" for row in table_body]
+    return "\n".join([header_row, separator_row] + body_rows)
+
