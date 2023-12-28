@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(current_script_dir)
 sys.path.append(parent_dir)
 import re
 import json
-from extraction.tables_html import extract_html_tables
+from extraction.html_functions import extract_html_tables
 from extraction.process_excel import process_finance_excel
 
 

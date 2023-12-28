@@ -68,7 +68,7 @@ class MinioDBFunctions:
 
     def get_client(self):
         client = Minio(
-            "192.168.1.42:9000",
+            "192.168.1.7:9000",
             access_key="1T8p7bcYuD4DgWSRrUGn",
             secret_key="b849fJXr4IjXqATibsiljbrKWA1VrFK4XspD2Hn1",
             secure=False,  # Set to False if you are not using https

@@ -62,7 +62,7 @@ def get_company_data(company_symbol):
 
 
 def get_cleaned_row(row_dict):
-    minio_server_url = 'http://192.168.1.42:9000/secreports/'
+    minio_server_url = 'http://192.168.1.7:9000/secreports/'
     required_fields = ["value", "type"]
     final_dict = {}
     for key in row_dict:
