@@ -1,30 +1,31 @@
-import os
 import json
 import re
 from intervaltree import IntervalTree, Interval
+import bs4
 from bs4 import BeautifulSoup
 
 
 def convert_intervaltree(table_tree):
     # function to convert interval tree data to list data
     num_rows = max([len(interval.data) for interval in sorted(table_tree)], default=0)
-    table_tree_unwraped = [[] for _ in range(num_rows)]
+    table_tree_unwrapped = [[] for _ in range(num_rows)]
     for interval in sorted(table_tree):
         for i, cell in enumerate(interval.data):
-            table_tree_unwraped[i].append(cell)
+            table_tree_unwrapped[i].append(cell)
 
     table_body = []
-    for row in table_tree_unwraped:
+    for row in table_tree_unwrapped:
         table_row = []
         for i, cells in enumerate(row):
             if cells is not None and len(cells) > 0:
                 cell_dict = {
-                    "value": " ".join([_c.get_text().strip() for _c in cells]),
+                    "text": " ".join([_c.get_text(separator=' ').strip() for _c in cells]),
                     "href": cells[-1].find("a").get("href") if cells[-1].find("a") else None,
+                    "cells": cells
                 }
                 table_row.append(cell_dict)
             else:
-                table_row.append({"value": ""})
+                table_row.append({"text": ""})
                 continue
         table_body.append(table_row)
     return table_body
@@ -88,15 +89,10 @@ def extract_html_table(table_tag):
                 table_tree.add(Interval(prev_coord, end_coord, [None] * num_rows + [[cell]]))
             else:
                 interval = sorted(overlap_intervals)[0]
-                data = interval.data
-                table_tree.remove(interval)
-                if len(data) > num_rows:
-                    data[-1].append(cell)
+                if len(interval.data) > num_rows:
+                    interval.data[-1].append(cell)
                 else:
-                    data.append([cell])
-                table_tree.add(
-                    (Interval(min(prev_coord, interval.begin), max(end_coord, interval.end), data))
-                )
+                    interval.data.append([cell])
             prev_coord = end_coord
 
         # equating length of all columns
@@ -113,12 +109,14 @@ def extract_html_table(table_tag):
     return table_dict
 
 
-def extract_html_tables(html_path):
+def extract_html_tables(html_path, limit=None):
     with open(html_path, "r") as f:
         soup = BeautifulSoup(f, "html.parser")
 
     tables = []
     table_tags = soup.find_all("table")
+    if limit is not None:
+        table_tags = table_tags[:limit]
     for table_html in table_tags[3:]:
         table = extract_html_table(table_html)
         if table["body"]:
@@ -128,7 +126,7 @@ def extract_html_tables(html_path):
 
 
 def get_glossary(html_path):
-    tables = extract_html_tables(html_path)
+    tables = extract_html_tables(html_path, limit=15)
     glossary_table = None
     for table in tables:
         if (
@@ -141,16 +139,16 @@ def get_glossary(html_path):
         return {}
     glossary = {}
     for row in glossary_table["body"]:
-        if len(row) == 3 and row[1]["value"]:
+        if len(row) == 3 and row[1]["text"]:
             href = ""
             for _c in row:
                 if _c.get("href", "") and _c.get("href", "").strip():
                     href = _c["href"].strip()
                     break
 
-            key = row[1]["value"]
-            key = row[0]["value"].strip() + "|" + key
-            glossary[key] = {"page": row[2]["value"], "href": href}
+            key = row[1]["text"]
+            key = row[0]["text"].strip() + "|" + key
+            glossary[key] = {"page": row[2]["text"], "href": href}
 
     return glossary
 
@@ -201,9 +199,193 @@ def get_section_text(html_path, section_name):
     return section_text
 
 
+def get_table_paragraphs(node):
+    # function to fetch paragraph which are organized inside table tag
+    paragraphs = []
+    table = extract_html_table(node)
+    if not table['body']:
+        return paragraphs
+    for j in range(len(table['body'][0])):
+        for i in range(len(table['body'])):
+            if not table['body'][i][j]['text']:
+                continue
+            paragraphs.append(__get_node_obj(table['body'][i][j]['text'],
+                                             table['body'][i][j]['cells']))
+    return paragraphs
+
+
+def __get_node_obj(text, span_nodes=[]):
+    return {
+        "text": text.strip(),
+        "features": {
+            "font-size": get_font_style(span_nodes, "font-size"),
+            "font-weight": get_font_style(span_nodes, "font-weight"),
+            "font-style": get_font_style(span_nodes, "font-style"),
+        },
+    }
+
+
+def __iterate(parent):
+    texts = []
+    if parent.name == "table":
+        return get_table_paragraphs(parent)
+    
+    if type(parent) != bs4.element.Tag:
+        if str(parent).replace("\n", "").strip():
+            texts.append(__get_node_obj(str(parent).strip()))
+        return texts
+
+    if not parent.children and parent.get_text().strip():
+        texts.append(__get_node_obj(parent.get_text().strip()))
+    else:
+        text = ""
+        span_nodes = []
+        for node in parent.children:
+            if node.name == "span" or node.name == "sup" or node.name == "font":
+                text += node.get_text()
+                span_nodes.append(node)
+            else:
+                if text.strip():
+                    texts.append(__get_node_obj(text, span_nodes))
+                texts += __iterate(node)
+                text = ""
+                span_nodes = []
+        if text.strip():
+            texts.append(__get_node_obj(text, span_nodes))
+    return texts
+
+
+def get_section_paragraphs(html_path, section_name):
+    glossary = get_glossary(html_path)
+    section_boundary = get_section_boundary(glossary, section_name)
+    with open(html_path, "r") as f:
+        soup = BeautifulSoup(f, "html.parser")
+    section_paragraphs = []
+    if section_boundary[0] and section_boundary[1]:
+        element = soup.find(attrs={"name": section_boundary[0]["href"].lstrip("#")})
+        if element is None:
+            element = soup.find(attrs={"id": section_boundary[0]["href"].lstrip("#")})
+        while element is not None:
+            if element.next_sibling is None:
+                element = element.parent
+                continue
+            else:
+                element = element.next_sibling
+            if type(element) != bs4.element.Tag:
+                continue
+            boundary_end = element.find(attrs={"name": section_boundary[1]["href"].lstrip("#")})
+            if boundary_end is None:
+                element.find(attrs={"name": section_boundary[1]["href"].lstrip("#")})
+            if boundary_end:
+                for _e in boundary_end.previous_siblings:
+                    section_paragraphs += __iterate(_e)
+                break
+            section_paragraphs += __iterate(element)
+
+    rank_nodes(section_paragraphs)
+    return section_paragraphs
+
+
+def generate_paragraphs(nodes):
+    paragraphs = []
+    for i, node in enumerate(nodes):
+        rank = node["rank"]
+        headings = []
+        for upper_node in reversed(nodes[max(0, i - 50) : i]):
+            if upper_node["rank"] > rank:
+                rank = upper_node["rank"]
+                headings.append(upper_node["text"])
+            if len(headings) >= 3:
+                break
+        para = "\n\n".join(reversed(headings))
+        para = para + "\n\n" + node["text"]
+        paragraphs.append(para)
+    return paragraphs
+
+
+# function to extract html text, without losing heading hierarchy
+def get_document_structure(html_path):
+    def __get_node_obj(text, span_nodes=[]):
+        return {
+            "text": text.strip(),
+            "features": {
+                "font-size": get_font_style(span_nodes, "font-size"),
+                "font-weight": get_font_style(span_nodes, "font-weight"),
+                "font-style": get_font_style(span_nodes, "font-style"),
+            },
+        }
+
+    def __iterate(parent, texts=[]):
+        if type(parent) != bs4.element.Tag:
+            if str(parent).replace("\n", "").strip():
+                texts.append(__get_node_obj(str(parent).strip()))
+            return
+
+        if not parent.children and parent.get_text().strip():
+            texts.append(__get_node_obj(parent.get_text().strip()))
+        else:
+            text = ""
+            span_nodes = []
+            for node in parent.children:
+                if node.name == "span" or node.name == "sup" or node.name == "font":
+                    text += node.get_text()
+                    span_nodes.append(node)
+                else:
+                    if text.strip():
+                        texts.append(__get_node_obj(text, span_nodes))
+                    __iterate(node, texts)
+                    text = ""
+                    span_nodes = []
+            if text.strip():
+                texts.append(__get_node_obj(text, span_nodes))
+
+    with open(html_path, "r") as f:
+        soup = BeautifulSoup(f, "html.parser")
+
+    data = []
+    __iterate(soup.html, data)
+    rank_nodes(data)
+    # generating paragraphs with heading information
+    paragraphs = generate_paragraphs(data)
+    with open("debug.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+    with open("debug.txt", "w", encoding="utf-8") as f:
+        sep = "\n" + "-" * 50 + "\n"
+        f.write(sep.join(paragraphs))
+
+
+def get_font_style(nodes, style_name):
+    if len(nodes) == 0:
+        return ""
+    node = nodes[0]
+    style = node.get("style")
+    styles = style.split(";")
+    for style in styles:
+        if style_name in style:
+            return style.replace(style_name + ":", "")
+    return ""
+
+
+def rank_nodes(nodes):
+    for node in nodes:
+        try:
+            rank = float(re.search("\d{1,}\.?\d{0,}", node["features"]["font-size"]).group())
+        except:
+            rank = 0
+        if node["features"]["font-weight"] == "bold":
+            rank += 2
+        if node["features"]["font-style"] == "italic":
+            rank += 1
+        node["rank"] = rank
+
+
 if __name__ == "__main__":
-    html_path = r"data\Current\AEP/000000490419000009/aep10klegal20184q.htm"
-    get_section_text(html_path, "Business")
+    html_path = r"data\Current\AIG/000000527223000007/aig-20221231.htm"
+    # get_document_structure(html_path)
+    section_paragraphs = get_section_paragraphs(html_path, "Business")
+    # with open('test.txt', 'w', encoding='utf-8') as f:
+    #     f.write(section_text)
     # data = extract_html_tables(html_path)
-    # with open("test.json", "w") as f:
-    #     json.dump(data, f, indent=4)
+    with open("debug.json", "w") as f:
+        json.dump(section_paragraphs, f, indent=4)
