@@ -68,7 +68,8 @@ def get_cleaned_row(row_dict):
     for key in row_dict:
         if key in required_fields:
             final_dict[key] = row_dict[key]
-    files = MinioDBFunctions('secreports').list_objects(row_dict['folderlocation'])
+    files = MinioDBFunctions('secreports').list_objects(
+        row_dict['folderlocation'].replace("\\", "/"))
     # temporary solution
     target_file = ''
     for file in files:

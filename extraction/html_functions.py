@@ -209,8 +209,26 @@ def get_table_paragraphs(node):
         for i in range(len(table['body'])):
             if not table['body'][i][j]['text']:
                 continue
-            paragraphs.append(__get_node_obj(table['body'][i][j]['text'],
-                                             table['body'][i][j]['cells']))
+            paragraphs += get_paragraphs(table['body'][i][j]['cells'])
+    return paragraphs
+
+
+def get_paragraphs(nodes):
+    paragraphs = []
+    text = ""
+    span_nodes = []
+    for node in nodes:
+        if node.name in ["span", "sup", "font"]:
+            text += node.get_text()
+            span_nodes.append(node)
+        else:
+            if text.strip():
+                paragraphs.append(__get_node_obj(text, span_nodes))
+            paragraphs += __iterate(node)
+            text = ""
+            span_nodes = []
+    if text.strip():
+        paragraphs.append(__get_node_obj(text, span_nodes))
     return paragraphs
 
 
@@ -238,20 +256,7 @@ def __iterate(parent):
     if not parent.children and parent.get_text().strip():
         texts.append(__get_node_obj(parent.get_text().strip()))
     else:
-        text = ""
-        span_nodes = []
-        for node in parent.children:
-            if node.name == "span" or node.name == "sup" or node.name == "font":
-                text += node.get_text()
-                span_nodes.append(node)
-            else:
-                if text.strip():
-                    texts.append(__get_node_obj(text, span_nodes))
-                texts += __iterate(node)
-                text = ""
-                span_nodes = []
-        if text.strip():
-            texts.append(__get_node_obj(text, span_nodes))
+        texts += get_paragraphs(parent.children)
     return texts
 
 
@@ -303,58 +308,6 @@ def generate_paragraphs(nodes):
     return paragraphs
 
 
-# function to extract html text, without losing heading hierarchy
-def get_document_structure(html_path):
-    def __get_node_obj(text, span_nodes=[]):
-        return {
-            "text": text.strip(),
-            "features": {
-                "font-size": get_font_style(span_nodes, "font-size"),
-                "font-weight": get_font_style(span_nodes, "font-weight"),
-                "font-style": get_font_style(span_nodes, "font-style"),
-            },
-        }
-
-    def __iterate(parent, texts=[]):
-        if type(parent) != bs4.element.Tag:
-            if str(parent).replace("\n", "").strip():
-                texts.append(__get_node_obj(str(parent).strip()))
-            return
-
-        if not parent.children and parent.get_text().strip():
-            texts.append(__get_node_obj(parent.get_text().strip()))
-        else:
-            text = ""
-            span_nodes = []
-            for node in parent.children:
-                if node.name == "span" or node.name == "sup" or node.name == "font":
-                    text += node.get_text()
-                    span_nodes.append(node)
-                else:
-                    if text.strip():
-                        texts.append(__get_node_obj(text, span_nodes))
-                    __iterate(node, texts)
-                    text = ""
-                    span_nodes = []
-            if text.strip():
-                texts.append(__get_node_obj(text, span_nodes))
-
-    with open(html_path, "r") as f:
-        soup = BeautifulSoup(f, "html.parser")
-
-    data = []
-    __iterate(soup.html, data)
-    rank_nodes(data)
-    # generating paragraphs with heading information
-    paragraphs = generate_paragraphs(data)
-    with open("debug.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
-
-    with open("debug.txt", "w", encoding="utf-8") as f:
-        sep = "\n" + "-" * 50 + "\n"
-        f.write(sep.join(paragraphs))
-
-
 def get_font_style(nodes, style_name):
     if len(nodes) == 0:
         return ""
@@ -381,11 +334,10 @@ def rank_nodes(nodes):
 
 
 if __name__ == "__main__":
-    html_path = r"data\Current\AIG/000000527223000007/aig-20221231.htm"
-    # get_document_structure(html_path)
+    html_path = r"data/Current/AIG/000000527223000007/aig-20221231.htm"
     section_paragraphs = get_section_paragraphs(html_path, "Business")
-    # with open('test.txt', 'w', encoding='utf-8') as f:
-    #     f.write(section_text)
-    # data = extract_html_tables(html_path)
-    with open("debug.json", "w") as f:
-        json.dump(section_paragraphs, f, indent=4)
+    text = "\n".join([n['text'] for n in section_paragraphs])
+    with open('debug.txt', "w") as f:
+        f.write(text)
+    # with open("debug.json", "w") as f:
+    #     json.dump(section_paragraphs, f, indent=4)

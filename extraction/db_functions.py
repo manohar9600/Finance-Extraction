@@ -104,7 +104,7 @@ class MinioDBFunctions:
 
 def get_segment_data(symbol):
     file_path = os.path.join(
-        r"C:\Users\Manohar\Desktop\Projects\Finance-Extraction\data\current",
+        r"/home/manu/Projects/Finance-Extraction/data/Current",
         symbol,
         "segment_tables.json",
     )
