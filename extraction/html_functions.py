@@ -3,6 +3,7 @@ import re
 from intervaltree import IntervalTree, Interval
 import bs4
 from bs4 import BeautifulSoup
+from langchain_community.document_loaders import UnstructuredHTMLLoader
 
 
 def convert_intervaltree(table_tree):
@@ -280,7 +281,7 @@ def get_section_paragraphs(html_path, section_name):
                 continue
             boundary_end = element.find(attrs={"name": section_boundary[1]["href"].lstrip("#")})
             if boundary_end is None:
-                element.find(attrs={"name": section_boundary[1]["href"].lstrip("#")})
+                boundary_end = element.find(attrs={"id": section_boundary[1]["href"].lstrip("#")})
             if boundary_end:
                 for _e in boundary_end.previous_siblings:
                     section_paragraphs += __iterate(_e)
@@ -331,6 +332,56 @@ def rank_nodes(nodes):
         if node["features"]["font-style"] == "italic":
             rank += 1
         node["rank"] = rank
+
+
+def get_section_html(html_path, section_name):
+    glossary = get_glossary(html_path)
+    section_boundary = get_section_boundary(glossary, section_name)
+    with open(html_path, "r") as f:
+        soup = BeautifulSoup(f, "html.parser")
+
+    section_html_elements = []
+    if section_boundary[0] and section_boundary[1]:
+        element = soup.find(attrs={"name": section_boundary[0]["href"].lstrip("#")})
+        if element is None:
+            element = soup.find(attrs={"id": section_boundary[0]["href"].lstrip("#")})
+        while element is not None:
+            if element.next_sibling is None:
+                element = element.parent
+                continue
+            else:
+                element = element.next_sibling
+            if type(element) != bs4.element.Tag:
+                continue
+            if section_boundary[1]["href"].lstrip("#") in [
+                element.attrs.get("name", ""),
+                element.attrs.get("id", ""),
+            ]:
+                break
+            boundary_end = element.find(
+                attrs={"name": section_boundary[1]["href"].lstrip("#")}
+            )
+            if boundary_end is None:
+                boundary_end = element.findAll(
+                    attrs={"id": section_boundary[1]["href"].lstrip("#")}
+                )
+            if boundary_end:
+                section_html_elements += list(boundary_end.previous_siblings)
+                break
+            section_html_elements.append(element)
+
+    new_div = soup.new_tag("div")
+    for ele in section_html_elements:
+        new_div.append(ele)
+
+    return new_div
+
+
+def get_pages_text(file_path):
+    loader = UnstructuredHTMLLoader(file_path, mode="paged")
+    data = loader.load()
+    data_texts = [element.page_content for element in data]
+    return data_texts    
 
 
 if __name__ == "__main__":
