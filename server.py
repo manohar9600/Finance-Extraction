@@ -1,3 +1,4 @@
+import os
 import tornado.ioloop
 import tornado.web
 import json
@@ -8,7 +9,37 @@ from extraction.data_processor import extract_segment_information
 from loguru import logger
 
 
-master_folder = 'data/current'
+master_folder = 'data/Current'
+
+
+class MainHandler(tornado.web.RequestHandler):
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+        self.set_header("Access-Control-Allow-Headers", "Content-Type")
+        self.set_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+
+    def options(self):
+        # This method handles the pre-flight OPTIONS request.
+        # It simply responds with the CORS headers.
+        self.set_status(204)
+        self.finish()
+
+
+class ProductsHandler(MainHandler):
+    def post(self):
+        logger.info("--- request received for products list ---")
+        data = json.loads(self.request.body)
+        logger.info(f"company:{data['company']}")
+        file_path = os.path.join(master_folder, data['company'], "segments_info.json")
+        data = {}
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+        self.set_header('Content-Type', 'application/json')
+        self.write(data)
+        
+
 class AllHandler(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -167,6 +198,7 @@ def make_app():
         (r"/all", AllHandler),
         (r"/meta", Metadata),
         (r"/companydata", CompanyData),
+        (r"/products", ProductsHandler),
     ])
 
 
