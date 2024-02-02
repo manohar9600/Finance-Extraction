@@ -1,9 +1,9 @@
-import json
 import re
 from intervaltree import IntervalTree, Interval
 import bs4
 from bs4 import BeautifulSoup
-from langchain_community.document_loaders import UnstructuredHTMLLoader
+from lxml import etree
+PAGEBREAK_TAGS = ["hr"]
 
 
 def convert_intervaltree(table_tree):
@@ -219,15 +219,18 @@ def get_paragraphs(nodes):
     text = ""
     span_nodes = []
     for node in nodes:
-        if node.name in ["span", "sup", "font"]:
-            text += node.get_text()
-            span_nodes.append(node)
+        if node.tag in ["span", "sup", "font"]:
+            if node.text:
+                text += node.text
+                span_nodes.append(node)
         else:
             if text.strip():
                 paragraphs.append(__get_node_obj(text, span_nodes))
-            paragraphs += __iterate(node)
             text = ""
             span_nodes = []
+            if not node.text or not node.text.strip():
+                continue
+            paragraphs.append(__get_node_obj(node.text, span_nodes))
     if text.strip():
         paragraphs.append(__get_node_obj(text, span_nodes))
     return paragraphs
@@ -313,7 +316,7 @@ def get_font_style(nodes, style_name):
     if len(nodes) == 0:
         return ""
     node = nodes[0]
-    style = node.get("style")
+    style = node.attrib.get("style")
     styles = style.split(";")
     for style in styles:
         if style_name in style:
@@ -377,11 +380,21 @@ def get_section_html(html_path, section_name):
     return new_div
 
 
-def get_pages_text(file_path):
-    loader = UnstructuredHTMLLoader(file_path, mode="paged")
-    data = loader.load()
-    data_texts = [element.page_content for element in data]
-    return data_texts    
+def get_pages_text(html_string):
+    parser = etree.HTMLParser()
+    tree = etree.HTML(html_string, parser)
+    pages = []
+    page_nodes = []
+    for node in tree.iter():
+        if node.tag in PAGEBREAK_TAGS:
+            paragraphs = get_paragraphs(page_nodes)
+            pages.append("\n".join([p['text'] for p in paragraphs]))
+            page_nodes = []
+        page_nodes.append(node)
+    if page_nodes:
+        paragraphs = get_paragraphs(page_nodes)
+        pages.append("\n".join([p['text'] for p in paragraphs]))
+    return pages   
 
 
 if __name__ == "__main__":

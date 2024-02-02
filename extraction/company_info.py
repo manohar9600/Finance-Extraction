@@ -1,16 +1,11 @@
 from extraction.html_functions import get_section_html, get_pages_text
 from tqdm import tqdm
-import pandas as pd
-from io import StringIO
 from extraction.gpt_functions import summarize, get_multivector_retriver, get_gpt_answer
+from loguru import logger
 
 
 def get_relevant_documents(section_html):
-    # todo remove dependency on file save
-    with open("debug.html", "w", encoding="utf-8") as file:
-        file.write(str(section_html))
-
-    data_texts = get_pages_text("debug.html")
+    data_texts = get_pages_text(str(section_html))
     descriptions = []
     for text in tqdm(data_texts):
         descriptions.append(summarize(text))
@@ -23,6 +18,7 @@ def get_relevant_documents(section_html):
         "what are the company's products and services and segments"
     )
     relevant_docs = sorted(relevant_docs, key=lambda x: int(x.split("||")[-1]))
+    logger.debug(f"RAG selected pages: {','.join([x.split('||')[-1] for x in relevant_docs])}")
     return relevant_docs
 
 
@@ -34,10 +30,15 @@ def get_company_segments(html_path):
     question = "what are the company's products and services and segments."
     prompt = f"""context: {context}
                     prompt: {question}
-                    ouput format: tabluar format, columns are item, type, description"""
+                    output format: Markdown table. columns should be Item(product or service or segment name), Category, Text related to it."""
     result = get_gpt_answer(prompt)
-    df = pd.read_csv(StringIO(result),  sep="|", index_col=1).dropna(axis=1, how="all").iloc[1:]
-    return df
+    segments_data = {}
+    for l in result.split('\n')[2:]:
+        item, item_type, description = [s.strip() for s in l.strip('|').split('|')]
+        if item_type not in segments_data:
+            segments_data[item_type] = []
+        segments_data[item_type].append({'name': item, 'description': description})
+    return segments_data
 
 
 if __name__ == "__main__":

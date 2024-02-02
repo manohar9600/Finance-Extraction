@@ -91,6 +91,7 @@ def get_gpt_answer(prompt):
         messages=[
             {"role": "user", "content": prompt},
         ],
+        temperature=0.5
     )
     result = response.choices[0].message.content
     return result
