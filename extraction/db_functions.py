@@ -2,10 +2,16 @@ import os
 import json
 import mimetypes
 import psycopg2
+import hashlib
 import pandas as pd
 from glob import glob
 from minio import Minio
 from loguru import logger
+from langchain_community.vectorstores import Chroma
+from langchain.docstore.document import Document
+from extraction.html_functions import get_pages_text
+from extraction.gpt_functions import summarize, get_openai_embeddingfn
+from tqdm import tqdm
 
 
 class DBFunctions:
@@ -100,6 +106,35 @@ class MinioDBFunctions:
         objects = client.list_objects(self.bucket_name, prefix=folder_name, recursive=True)
         objects = [obj.object_name for obj in objects]
         return objects
+
+
+class VectorDBFunctions:
+    
+    def get_relevant_documents_html(self, html, query):
+        documents = get_pages_text(html)
+        collection_name = hashlib.sha224(html.encode('utf-8')).hexdigest()
+        vectorstore = Chroma(
+            collection_name=collection_name,
+            embedding_function=get_openai_embeddingfn(),
+            persist_directory="vectorcache"
+        )
+        if vectorstore._collection.count() < 3:
+            descriptions = []
+            for text in tqdm(documents):
+                descriptions.append(summarize(text))
+            # adding page number to sort them in context
+            documents = [a + "||" + str(i) for i, a in enumerate(documents)]
+            summary_texts = [
+                Document(page_content=s, metadata={'text': documents[i]})
+                for i, s in enumerate(descriptions)
+            ]
+            vectorstore.add_documents(summary_texts)
+        retriever = vectorstore.as_retriever()
+        relevant_docs = retriever.get_relevant_documents(query)
+        relevant_docs = [d.metadata['text'] for d in relevant_docs]
+        relevant_docs = sorted(relevant_docs, key=lambda x: int(x.split("||")[-1]))
+        logger.debug(f"RAG selected pages: {','.join([x.split('||')[-1] for x in relevant_docs])}")
+        return relevant_docs
 
 
 def get_segment_data(symbol):

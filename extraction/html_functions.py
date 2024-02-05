@@ -127,7 +127,7 @@ def extract_html_tables(html_path, limit=None):
 
 
 def get_glossary(html_path):
-    tables = extract_html_tables(html_path, limit=15)
+    tables = extract_html_tables(html_path, limit=30)
     glossary_table = None
     for table in tables:
         if (
@@ -377,7 +377,7 @@ def get_section_html(html_path, section_name):
     for ele in section_html_elements:
         new_div.append(ele)
 
-    return new_div
+    return str(new_div)
 
 
 def get_pages_text(html_string):

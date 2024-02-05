@@ -1,11 +1,6 @@
 import openai
 import time
 from loguru import logger
-import uuid
-from langchain.vectorstores.chroma import Chroma
-from langchain.retrievers.multi_vector import MultiVectorRetriever
-from langchain.storage.in_memory import InMemoryStore
-from langchain.docstore.document import Document
 from langchain_openai import OpenAIEmbeddings
 
 
@@ -87,7 +82,7 @@ def word_to_num(s):
 
 def get_gpt_answer(prompt):
     response = openai.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-3.5-turbo-0125",
         messages=[
             {"role": "user", "content": prompt},
         ],
@@ -100,36 +95,12 @@ def get_gpt_answer(prompt):
 def summarize(text):
     output_format = "just paragraph"
     prompt = f"""text: {text}
-                prompt: Describe what this text contains about company. Output should not exceed 50 words
+                prompt: Describe what this text contains about company. Output should not exceed 100 words
                 ouput format:{output_format}"""
     return get_gpt_answer(prompt)
 
 
-def get_multivector_retriver(data_texts, descriptions):
-    vectorstore = Chroma(
-        collection_name="summaries",
-        embedding_function=OpenAIEmbeddings(
-            model="text-embedding-ada-002", openai_api_key=open_ai_key
-        ),
-    )
-
-    # The storage layer for the parent documents
-    store = InMemoryStore()
-    id_key = "doc_id"
-
-    # The retriever (empty to start)
-    retriever = MultiVectorRetriever(
-        vectorstore=vectorstore,
-        docstore=store,
-        id_key=id_key,
-    )
-
-    # Add texts
-    doc_ids = [str(uuid.uuid4()) for _ in data_texts]
-    summary_texts = [
-        Document(page_content=s, metadata={id_key: doc_ids[i]})
-        for i, s in enumerate(descriptions)
-    ]
-    retriever.vectorstore.add_documents(summary_texts)
-    retriever.docstore.mset(list(zip(doc_ids, data_texts)))
-    return retriever
+def get_openai_embeddingfn():
+    return OpenAIEmbeddings(
+                model="text-embedding-ada-002", openai_api_key=open_ai_key
+            )
