@@ -57,7 +57,7 @@ def get_latest_file(company_folder):
 
 
 # processing segment information
-company_folders = sorted(list(glob("data/Current/AAPL")))
+company_folders = sorted(list(glob("data/Current/ABBV")))
 for company in list(company_folders)[:5]:
     logger.info(f"processing company:{company}")
     latest_file = get_latest_file(company)

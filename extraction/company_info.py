@@ -9,7 +9,7 @@ def get_company_segments(html_path):
     relevant_docs = VectorDBFunctions().get_relevant_documents_html(
         section_html, "what are the company's products and services and segments")
     context = "\n".join(relevant_docs)
-    question = "what are the company's products and services and segments."
+    question = "Find and extract company's products, services, segments and don't include other types."
     prompt = f"""context: {context}
                     prompt: {question}
                     output format: Markdown table. columns should be Item(product or service or segment name), Category, Text related to it."""

@@ -9,8 +9,9 @@ from minio import Minio
 from loguru import logger
 from langchain_community.vectorstores import Chroma
 from langchain.docstore.document import Document
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from extraction.html_functions import get_pages_text
-from extraction.gpt_functions import summarize, get_openai_embeddingfn
+from extraction.gpt_functions import summarize
 from tqdm import tqdm
 
 
@@ -45,6 +46,21 @@ class DBFunctions:
         comp_id = cursor.fetchone()[0]
         conn.close()
         return comp_id
+    
+    def get_company_info(self, symbol: str) -> dict:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT * FROM companies where \"Symbol\"='{symbol.upper()}'")
+        response_data = cursor.fetchone()
+        if response_data is None:
+            return {}
+        columns = [desc[0] for desc in cursor.description][1:]
+        company_data = response_data[1:]
+        output = {}
+        for i, col in enumerate(columns):
+            output[col] = company_data[i]
+        conn.close()
+        return output
 
     def add_document_metadata(self, symbol, publisheddate, filetype, folderlocation):
         companyid = self.get_company_id(symbol)
@@ -115,8 +131,8 @@ class VectorDBFunctions:
         collection_name = hashlib.sha224(html.encode('utf-8')).hexdigest()
         vectorstore = Chroma(
             collection_name=collection_name,
-            embedding_function=get_openai_embeddingfn(),
-            persist_directory="vectorcache"
+            embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
+            persist_directory="/home/manu/Data/vectorcache"
         )
         if vectorstore._collection.count() < 3:
             descriptions = []
@@ -129,7 +145,7 @@ class VectorDBFunctions:
                 for i, s in enumerate(descriptions)
             ]
             vectorstore.add_documents(summary_texts)
-        retriever = vectorstore.as_retriever()
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
         relevant_docs = retriever.get_relevant_documents(query)
         relevant_docs = [d.metadata['text'] for d in relevant_docs]
         relevant_docs = sorted(relevant_docs, key=lambda x: int(x.split("||")[-1]))

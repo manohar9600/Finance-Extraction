@@ -7,6 +7,7 @@ import psycopg2
 from extraction.db_functions import MinioDBFunctions, get_segment_data
 from extraction.data_processor import extract_segment_information
 from loguru import logger
+from extraction.db_functions import DBFunctions
 
 
 master_folder = 'data/Current'
@@ -40,19 +41,7 @@ class ProductsHandler(MainHandler):
         self.write(data)
         
 
-class AllHandler(tornado.web.RequestHandler):
-    def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
-        self.set_header("Access-Control-Allow-Headers", "Content-Type")
-        self.set_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-
-    def options(self):
-        # This method handles the pre-flight OPTIONS request.
-        # It simply responds with the CORS headers.
-        self.set_status(204)
-        self.finish()
-
+class AllHandler(MainHandler):
     def get(self):
         logger.info("--- request received for companies list ---")
         conn = psycopg2.connect(database="ProdDB",
@@ -113,33 +102,19 @@ def get_cleaned_row(row_dict):
     return final_dict
 
 
-class CompanyData(tornado.web.RequestHandler):
-    def set_default_headers(self):
-        self.set_header("Access-Control-Allow-Origin", "*")
-        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
-        self.set_header("Access-Control-Allow-Headers", "Content-Type")
-        self.set_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-
-    def options(self):
-        # This method handles the pre-flight OPTIONS request.
-        # It simply responds with the CORS headers.
-        self.set_status(204)
-        self.finish()
+class CompanyData(MainHandler): 
     
     def post(self):
         logger.info("--- company data request received ---")
         data = json.loads(self.request.body)
         logger.info(f"got request for data of company:{data['company']}")
-        tables = []
-        data_type = data.get('tablesType', '').lower()
-        if data_type == 'financial':
-            tables = self.get_finance_tables(data)
-        elif data_type == 'segment':
-            tables = get_segment_data(data['company'])
-
+        finance_tables = self.get_finance_tables(data)
+        seg_tables = get_segment_data(data['company'])
+        comp_info = DBFunctions().get_company_info(data['company'])
         self.set_header('Content-Type', 'application/json')
-        self.write({'tables': tables})
-            
+        self.write({'info': comp_info, 'financeTables': finance_tables, 
+                    'segmentTables': seg_tables})
+
     def get_finance_tables(self, data):
         company_data = get_company_data(data['company'])
         columns = company_data
@@ -164,9 +139,13 @@ class CompanyData(tornado.web.RequestHandler):
                 "body": table
             }
             tables.append(table)
-        pref_dict = {'income statement': 1, 'balance sheet': 2, 'cash flow': 3}
-        tables = sorted(tables, key=lambda x:pref_dict[x['class']])
-        return tables
+        final_output = {'income statement': {}, 'balance sheet': {}, 'cash flow': {}}
+        for table in tables:
+            if not table['class'] in final_output:
+                continue
+            final_output[table['class']] = table
+
+        return final_output
 
 
 class Metadata(tornado.web.RequestHandler):

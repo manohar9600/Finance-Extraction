@@ -355,6 +355,7 @@ def get_section_html(html_path, section_name):
             else:
                 element = element.next_sibling
             if type(element) != bs4.element.Tag:
+                section_html_elements.append(element)
                 continue
             if section_boundary[1]["href"].lstrip("#") in [
                 element.attrs.get("name", ""),
