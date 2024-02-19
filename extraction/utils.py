@@ -2,6 +2,9 @@ import os
 from collections import Counter
 import openpyxl
 from openpyxl.styles import Font, Alignment
+from glob import glob
+from datetime import datetime
+import json
 
 
 def most_occuring_element(lst):
@@ -84,3 +87,19 @@ def generate_markdown_table(table):
     body_rows = ["| " + " | ".join(str(item['value']) for item in row) + " |" for row in table_body]
     return "\n".join([header_row, separator_row] + body_rows)
 
+
+def get_latest_file(company_folder):
+    files = list(glob(os.path.join(company_folder, "*/*.htm")))
+    files_dates = []
+    for file in files:
+        if 'index' in file.split('/')[-1]:
+            continue
+        xbrl_path = os.path.join(os.path.dirname(file), 'xbrl_data.json')
+        with open(xbrl_path) as f:
+            xbrl_data = json.load(f)
+        for dp in xbrl_data.get('factList', []):
+            if dp[2]["label"] == "dei:DocumentPeriodEndDate":
+                result = datetime.strptime(dp[2]["value"], "%Y-%m-%d")
+                files_dates.append([file, result])
+                break
+    return sorted(files_dates, key=lambda x:x[1], reverse=True)[0][0]

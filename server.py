@@ -8,6 +8,7 @@ from extraction.db_functions import MinioDBFunctions, get_segment_data
 from extraction.data_processor import extract_segment_information
 from loguru import logger
 from extraction.db_functions import DBFunctions
+from extraction.utils import get_latest_file
 
 
 master_folder = 'data/Current'
@@ -26,20 +27,6 @@ class MainHandler(tornado.web.RequestHandler):
         self.set_status(204)
         self.finish()
 
-
-class ProductsHandler(MainHandler):
-    def post(self):
-        logger.info("--- request received for products list ---")
-        data = json.loads(self.request.body)
-        logger.info(f"company:{data['company']}")
-        file_path = os.path.join(master_folder, data['company'], "segments_info.json")
-        data = {}
-        if os.path.exists(file_path):
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-        self.set_header('Content-Type', 'application/json')
-        self.write(data)
-        
 
 class AllHandler(MainHandler):
     def get(self):
@@ -111,9 +98,15 @@ class CompanyData(MainHandler):
         finance_tables = self.get_finance_tables(data)
         seg_tables = get_segment_data(data['company'])
         comp_info = DBFunctions().get_company_info(data['company'])
+        products = self.get_products_info(data['company'])
+
+        # debugging code
+        debug = {}
+        debug['latestfile'] = get_latest_file("data/Current/" + data['company']).replace("data/Current/", "http://192.168.1.9:9000/secreports/")
+
         self.set_header('Content-Type', 'application/json')
         self.write({'info': comp_info, 'financeTables': finance_tables, 
-                    'segmentTables': seg_tables})
+                    'segmentTables': seg_tables, 'products': products, 'debug': debug}) 
 
     def get_finance_tables(self, data):
         company_data = get_company_data(data['company'])
@@ -147,6 +140,13 @@ class CompanyData(MainHandler):
 
         return final_output
 
+    def get_products_info(self, symbol):
+        file_path = os.path.join(master_folder, symbol, "segments_info.json")
+        data = {}
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+        return data
 
 class Metadata(tornado.web.RequestHandler):
     def set_default_headers(self):
@@ -177,7 +177,6 @@ def make_app():
         (r"/all", AllHandler),
         (r"/meta", Metadata),
         (r"/companydata", CompanyData),
-        (r"/products", ProductsHandler),
     ])
 
 
