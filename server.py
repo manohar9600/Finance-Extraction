@@ -128,7 +128,7 @@ class CompanyData(MainHandler):
 
             table = {
                 "class": table_name,
-                "header": [""] + [d.strftime("%d-%m-%Y") for d in columns],
+                "header": [""] + [d.strftime("%b %Y") for d in columns],
                 "body": table
             }
             tables.append(table)
