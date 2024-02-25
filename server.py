@@ -9,7 +9,7 @@ from extraction.data_processor import extract_segment_information
 from loguru import logger
 from extraction.db_functions import DBFunctions
 from extraction.utils import get_latest_file
-
+from company_scrapper.companyinfo import get_ticker_data
 
 master_folder = 'data/Current'
 
@@ -171,12 +171,34 @@ class Metadata(tornado.web.RequestHandler):
         self.set_header('Content-Type', 'application/json')
         self.write(metadata)
 
+class CompanyOverview(tornado.web.RequestHandler):
+    
+    def set_default_headers(self):
+        self.set_header("Access-Control-Allow-Origin", "*")
+        self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+        self.set_header("Access-Control-Allow-Headers", "Content-Type")
+        self.set_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+
+    def options(self):
+        # This method handles the pre-flight OPTIONS request.
+        # It simply responds with the CORS headers.
+        self.set_status(204)
+        self.finish()
+        
+    def post(self):
+        logger.info("--- company data request received ---")
+        data = json.loads(self.request.body)
+        ticker_data = get_ticker_data(data['company'])
+        self.set_header('Content-Type', 'application/json')
+        self.write(ticker_data)
+        
 
 def make_app():
     return tornado.web.Application([
         (r"/all", AllHandler),
         (r"/meta", Metadata),
         (r"/companydata", CompanyData),
+        (r"/companyoverview", CompanyOverview),
     ])
 
 
