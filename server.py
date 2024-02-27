@@ -99,6 +99,8 @@ class CompanyData(MainHandler):
         seg_tables = get_segment_data(data['company'])
         comp_info = DBFunctions().get_company_info(data['company'])
         products = self.get_products_info(data['company'])
+        other_info = get_ticker_data(data['company'])
+        company_overview = {"products": products, "otherinfo": other_info}
 
         # debugging code
         debug = {}
@@ -106,7 +108,7 @@ class CompanyData(MainHandler):
 
         self.set_header('Content-Type', 'application/json')
         self.write({'info': comp_info, 'financeTables': finance_tables, 
-                    'segmentTables': seg_tables, 'products': products, 'debug': debug}) 
+                    'segmentTables': seg_tables, 'products': products, 'companyOverview': company_overview, 'debug': debug})
 
     def get_finance_tables(self, data):
         company_data = get_company_data(data['company'])
