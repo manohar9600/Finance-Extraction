@@ -42,40 +42,33 @@ def get_ticker_data(ticker):
     out_dict = dict()
 
     out_dict["symbol"] = data["meta"]["symbol"]
+    out_dict["desc"] = data["body"]["longBusinessSummary"]
+    
+    ceo_name = str()
+    for ofcr in data["body"]["companyOfficers"]:
+        if "ceo" in ofcr["title"].lower():
+            ceo_name = ofcr["name"].lstrip("Mr.").lstrip("Ms.").strip()
 
-    for key, value in data["body"].items():
+    out_dict["otherinfo"] = {
+        "class": "other info",
+        "header": ["", ""],
+        "body": [
+            [{"value": "Sector"}, {"value": data["body"]['sector']}],
+            [{"value": "Industry"}, {"value": data["body"]['industry']}],
+            [{"value": "CEO"}, {"value": ceo_name}],
+            [{"value": "Headquarters"}, {"value": data["body"]['city']}],
+            [{"value": "Employees"}, {"value": data["body"]['fullTimeEmployees']}],
+            [{"value": "Website"}, {"value": data["body"]['website']}],
+        ],
+    }
 
-        if key in [
-            "auditRisk",
-            "boardRisk",
-            "compensationRisk",
-            "shareHolderRightsRisk",
-            "overallRisk",
-            "governanceEpochDate",
-            "compensationAsOfEpochDate",
-            "maxAge",
-        ]:
-            continue
-        
-        elif key == 'companyOfficers':
-            ceo_data = dict()
-            for ofcr in value:
-                if 'ceo' in ofcr['title'].lower():
-                    ceo_data['name'] = ofcr['name'].lstrip('Mr.').lstrip('Ms.').strip()
-                    ceo_data['age'] = ofcr['age']
-                    ceo_data['pay'] = ofcr['totalPay']['fmt']
-                    
-                    out_dict['ceo'] = ceo_data
-        else:
-            out_dict[key] = value
-            
     return out_dict
 
 
 if __name__ == "__main__":
 
-    out_data = get_ticker_data('C')
-    
+    out_data = get_ticker_data("C")
+
     companies = [
         ("AAPL",),
         ("AAL",),
@@ -84,7 +77,7 @@ if __name__ == "__main__":
         ("ABT",),
         ("DLTR",),
     ]
-
+    """
     saved_files = os.listdir(save_folder)
 
     for i, ctick in enumerate(companies):
@@ -94,3 +87,4 @@ if __name__ == "__main__":
             print(f"{i}/{len(companies)}")
             get_company_profile(ctick[0])
             time.sleep(5)
+    """
