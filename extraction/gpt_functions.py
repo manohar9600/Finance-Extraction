@@ -2,11 +2,15 @@ import openai
 import time
 from loguru import logger
 from langchain_openai import OpenAIEmbeddings
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
+import google.generativeai as genai
 
 
 # todo change to system variable and remove open_ai_key
-open_ai_key = "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"
+open_ai_key = "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"
 openai.api_key = open_ai_key
+mistral_api_key = "XjDKSArDspNO81zsPXIFIQd06ib3x7nJ"
 
 
 def generate_markdown_table(columns, table_body):
@@ -80,9 +84,9 @@ def word_to_num(s):
     return "{:,}".format(total)
 
 
-def get_gpt_answer(prompt):
+def get_gpt_answer(prompt, model="gpt-3.5-turbo-0125"):
     response = openai.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
+        model=model,
         messages=[
             {"role": "user", "content": prompt},
         ],
@@ -92,15 +96,61 @@ def get_gpt_answer(prompt):
     return result
 
 
+def get_gpt_answer_json(prompt, model="gpt-3.5-turbo-0125"):
+    response = openai.chat.completions.create(
+        model=model,
+        response_format={ "type": "json_object" },
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant designed to output JSON."},
+            {"role": "user", "content": prompt},
+        ],
+    temperature=1
+    )
+    result = response.choices[0].message.content
+    return result
+
+
+# def get_gpt_answer(prompt):
+#     response = openai.chat.completions.create(
+#         model="gpt-4-1106-preview",
+#         messages=[
+#             {"role": "user", "content": prompt},
+#         ],
+#     temperature=1
+#     )
+#     result = response.choices[0].message.content
+#     return result
+
+
 def summarize(text):
     output_format = "just paragraph"
     prompt = f"""text: {text}
                 prompt: Describe what this text contains about company. Output should not exceed 100 words
                 ouput format:{output_format}"""
-    return get_gpt_answer(prompt)
+    return get_mistral_answer(prompt, model='open-mistral-7b')
 
 
 def get_openai_embeddingfn():
     return OpenAIEmbeddings(
                 model="text-embedding-ada-002", openai_api_key=open_ai_key
             )
+
+
+def get_mistral_answer(prompt, model):
+    client = MistralClient(api_key=mistral_api_key)
+    messages = [
+        ChatMessage(role="user", content=prompt)
+    ]
+    # No streaming
+    chat_response = client.chat(
+        model=model,
+        messages=messages,
+    )
+    return chat_response.choices[0].message.content
+
+
+def get_gemini_answer(prompt):
+    google_ai_api_key = "AIzaSyCDEkFzRpctmGFXY1OfOGqC96MnZKfnTm4"
+    genai.configure(api_key=google_ai_api_key)
+    model = genai.GenerativeModel('gemini-pro')
+    return model.generate_content(prompt).text

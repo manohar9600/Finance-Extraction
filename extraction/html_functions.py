@@ -389,12 +389,14 @@ def get_pages_text(html_string):
     for node in tree.iter():
         if node.tag in PAGEBREAK_TAGS:
             paragraphs = get_paragraphs(page_nodes)
-            pages.append("\n".join([p['text'] for p in paragraphs]))
+            if paragraphs:
+                pages.append("\n".join([p['text'] for p in paragraphs]))
             page_nodes = []
         page_nodes.append(node)
     if page_nodes:
         paragraphs = get_paragraphs(page_nodes)
-        pages.append("\n".join([p['text'] for p in paragraphs]))
+        if paragraphs:
+            pages.append("\n".join([p['text'] for p in paragraphs]))
     return pages   
 
 

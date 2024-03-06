@@ -3,7 +3,7 @@ import json
 import time
 import requests
 
-save_folder = "company_scrapper\companydata"
+save_folder = "company_scrapper/companydata"
 
 url = "https://yahoo-finance15.p.rapidapi.com/api/v1/markets/stock/modules"
 
@@ -57,7 +57,7 @@ def get_ticker_data(ticker):
             [{"value": "Industry"}, {"value": data["body"]['industry']}],
             [{"value": "CEO"}, {"value": ceo_name}],
             [{"value": "Headquarters"}, {"value": data["body"]['city']}],
-            [{"value": "Employees"}, {"value": data["body"]['fullTimeEmployees']}],
+            [{"value": "Employees"}, {"value": data["body"].get('fullTimeEmployees', -1)}],
             [{"value": "Website"}, {"value": data["body"]['website']}],
         ],
     }
