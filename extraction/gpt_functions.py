@@ -123,11 +123,10 @@ def get_gpt_answer_json(prompt, model="gpt-3.5-turbo-0125"):
 
 
 def summarize(text):
-    output_format = "just paragraph"
-    prompt = f"""text: {text}
-                prompt: Describe what this text contains about company. Output should not exceed 100 words
-                ouput format:{output_format}"""
-    return get_mistral_answer(prompt, model='open-mistral-7b')
+    # prompt = f"{text} \n---\n Describe what this text contains about company. Output should not exceed 100 words. More emphasis on headings and subheadings."
+    system_prompt = "Your job is to describe what given text tells about the company. What sections or headings it contains. Output should not exceed 100 words."
+    return get_mistral_answer(text, model='open-mistral-7b', 
+                              system_prompt=system_prompt)
 
 
 def get_openai_embeddingfn():
@@ -136,11 +135,12 @@ def get_openai_embeddingfn():
             )
 
 
-def get_mistral_answer(prompt, model):
+def get_mistral_answer(prompt, model, system_prompt=""):
     client = MistralClient(api_key=mistral_api_key)
-    messages = [
-        ChatMessage(role="user", content=prompt)
-    ]
+    messages = []
+    if system_prompt:
+        messages.append(ChatMessage(role="user", content=system_prompt))
+    messages.append(ChatMessage(role="user", content=prompt))
     # No streaming
     chat_response = client.chat(
         model=model,

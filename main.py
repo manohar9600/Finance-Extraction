@@ -1,6 +1,7 @@
 from extraction.process_sec import *
 from extraction.company_info import *
 from glob import glob
+from extraction.utils import get_latest_file
 logger.add("log_file.log")
 
 vars_df = get_prod_variables()
@@ -39,25 +40,9 @@ ciks = ['LVS']
 #     process_segment_information(cik, company_folder)
 
 
-def get_latest_file(company_folder):
-    files = list(glob(os.path.join(company_folder, "*/*.htm")))
-    files_dates = []
-    for file in files:
-        if 'index' in file.split('/')[-1]:
-            continue
-        xbrl_path = os.path.join(os.path.dirname(file), 'xbrl_data.json')
-        with open(xbrl_path) as f:
-            xbrl_data = json.load(f)
-        for dp in xbrl_data.get('factList', []):
-            if dp[2]["label"] == "dei:DocumentPeriodEndDate":
-                result = datetime.strptime(dp[2]["value"], "%Y-%m-%d")
-                files_dates.append([file, result])
-                break
-    return sorted(files_dates, key=lambda x:x[1], reverse=True)[0][0]
-
 
 # processing segment information
-company_folders = sorted(list(glob("data/Current/ABBV")))
+company_folders = sorted(list(glob("data/Current/ACN")))
 for company in list(company_folders)[:5]:
     logger.info(f"processing company:{company}")
     latest_file = get_latest_file(company)
@@ -65,7 +50,7 @@ for company in list(company_folders)[:5]:
         os.path.dirname(latest_file)), 'segments_info.json')
     # if os.path.exists(seg_info_path):
     #     continue
-    segments_info = get_company_segments(latest_file)
+    segments_info = get_company_segments_v2(latest_file)
     with open(seg_info_path, 'w', encoding='utf-8') as f:
         json.dump(segments_info, f, indent=4, ensure_ascii=False)
 

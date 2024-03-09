@@ -104,7 +104,7 @@ class CompanyData(MainHandler):
 
         # debugging code
         debug = {}
-        debug['latestfile'] = get_latest_file("data/Current/" + data['company']).replace("data/Current/", "http://192.168.1.9:9000/secreports/")
+        debug['latestfile'] = get_latest_file("data/Current/" + data['company']).replace("data/Current/", "http://192.168.1.3:9000/secreports/")
 
         self.set_header('Content-Type', 'application/json')
         self.write({'info': comp_info, 'financeTables': finance_tables, 
@@ -150,6 +150,7 @@ class CompanyData(MainHandler):
                 data = json.load(f)
         return data
 
+
 class Metadata(tornado.web.RequestHandler):
     def set_default_headers(self):
         self.set_header("Access-Control-Allow-Origin", "*")
@@ -172,6 +173,7 @@ class Metadata(tornado.web.RequestHandler):
         }        
         self.set_header('Content-Type', 'application/json')
         self.write(metadata)
+
 
 class CompanyOverview(tornado.web.RequestHandler):
     

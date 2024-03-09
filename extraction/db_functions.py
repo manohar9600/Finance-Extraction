@@ -136,7 +136,7 @@ class VectorDBFunctions:
         )
         if vectorstore._collection.count() < 3:
             descriptions = []
-            for text in tqdm(documents):
+            for text in tqdm(documents, desc="summarizing:"):
                 descriptions.append(summarize(text))
             # adding page number to sort them in context
             documents = [a + "||" + str(i) for i, a in enumerate(documents)]
@@ -145,6 +145,7 @@ class VectorDBFunctions:
                 for i, s in enumerate(descriptions)
             ]
             vectorstore.add_documents(summary_texts)
+
         retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
         relevant_docs = retriever.get_relevant_documents(query)
         relevant_docs = [d.metadata['text'] for d in relevant_docs]

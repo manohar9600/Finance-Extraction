@@ -44,10 +44,13 @@ def get_company_segments_v2(html_path):
         section_html, f"what are the company's products and services and operations and solutions?")
 
     # ---
+    mistral_7b_chat = ChatMistralAI(
+        mistral_api_key="XjDKSArDspNO81zsPXIFIQd06ib3x7nJ", model="mistral-small-latest"
+    )
     reduced_content = []
     for doc in tqdm(relevant_docs, desc="reducing number of tokens"):
-        prompt = f"Document: \n {doc} \n---\n Given a document with distinct headings and a structured format, please compress the text under each heading. The compression should aim to reduce the overall length of the text by eliminating redundant information and simplifying sentences, while focusing on key points. It's crucial to maintain the integrity of the document's structure, including all headings, subheadings, and any bullet points or numbered lists. Ensure to explicitly retain all product and service and operations and solution names mentioned in the text. The goal is to create a concise version of the document that retains all critical information, including product and service andand operations  solution names, and remains easy to navigate. Please ensure the compressed text under each heading is coherent, directly related to the heading, and that the transition between sections is smooth, with a particular emphasis on preserving the mention and context of all product names."
-        reduced_content.append(get_mistral_answer(prompt, "open-mixtral-8x7b"))
+        prompt = f"Document: \n {doc} \n---\n Given a document with distinct headings and a structured format, please compress the text under each heading. The compression should aim to reduce the overall length of the text by eliminating redundant information and simplifying sentences, while focusing on key points. It's crucial to maintain the integrity of the document's structure, including all headings, subheadings, and any bullet points or numbered lists. Ensure to explicitly retain all product and service and operations and solution names mentioned in the text. The goal is to create a concise version of the document that retains all critical information, including product and service and operations  solution names, and remains easy to navigate. Please ensure the compressed text under each heading is coherent, directly related to the heading, and that the transition between sections is smooth, with a particular emphasis on preserving the mention and context of all product names."
+        reduced_content.append(mistral_7b_chat.invoke([HumanMessage(content=prompt)]).content)
 
     products_context = "\n---\n".join(reduced_content)
     ques = "what are products and services and solutions and operations names offered or produced by the company. don't include description."
