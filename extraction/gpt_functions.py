@@ -5,6 +5,8 @@ from langchain_openai import OpenAIEmbeddings
 from mistralai.client import MistralClient
 from mistralai.models.chat_completion import ChatMessage
 import google.generativeai as genai
+from langchain_mistralai.chat_models import ChatMistralAI
+from langchain_core.messages import HumanMessage, SystemMessage
 
 
 # todo change to system variable and remove open_ai_key
@@ -123,10 +125,14 @@ def get_gpt_answer_json(prompt, model="gpt-3.5-turbo-0125"):
 
 
 def summarize(text):
-    # prompt = f"{text} \n---\n Describe what this text contains about company. Output should not exceed 100 words. More emphasis on headings and subheadings."
-    system_prompt = "Your job is to describe what given text tells about the company. What sections or headings it contains. Output should not exceed 100 words."
-    return get_mistral_answer(text, model='open-mistral-7b', 
-                              system_prompt=system_prompt)
+    messages = [
+       SystemMessage(content="Your job is to describe what given text tells about the company. With proper document structure with headings and subheadings. Output should not exceed 150 words. Also write questions that can be asked to fetch results from given text."),
+       HumanMessage(content=text)
+    ]
+    chat = ChatMistralAI(
+        mistral_api_key=mistral_api_key, model="mistral-small-latest"
+    )
+    return chat.invoke(messages).content
 
 
 def get_openai_embeddingfn():

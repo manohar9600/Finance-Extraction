@@ -104,7 +104,7 @@ class CompanyData(MainHandler):
 
         # debugging code
         debug = {}
-        debug['latestfile'] = get_latest_file("data/Current/" + data['company']).replace("data/Current/", "http://192.168.1.3:9000/secreports/")
+        debug['latestfile'] = get_latest_file("data/Current/" + data['company']).replace("data/Current/", "http://192.168.1.4:9000/secreports/")
 
         self.set_header('Content-Type', 'application/json')
         self.write({'info': comp_info, 'financeTables': finance_tables, 

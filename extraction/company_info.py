@@ -9,23 +9,33 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_mistralai.chat_models import ChatMistralAI
+from langchain_core.messages import HumanMessage
+from langchain.cache import SQLiteCache
+from langchain.globals import set_llm_cache
 
 
 def get_company_segments_v2(html_path):
+    # todo if experiment works, refactor this code
     # model = ChatOpenAI(
     #     openai_api_key="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",
     #     model="gpt-3.5-turbo-0125"
     # )
     model = ChatMistralAI(
-        mistral_api_key="XjDKSArDspNO81zsPXIFIQd06ib3x7nJ", model="open-mixtral-8x7b"
+        mistral_api_key="XjDKSArDspNO81zsPXIFIQd06ib3x7nJ", model="mistral-medium-latest"
     )
-
+    # set_llm_cache(SQLiteCache(database_path=".langchain.db"))
     # Define your desired data structure.
     class ProductsInfo(BaseModel):
         # name: list = Field(description="company name")
         Products: list = Field(
             description="products produced by the company. just product or service or solution or operation name"
         )
+        # Groups: list = Field(
+        #     description="list of item names that belongs to a group"
+        # )
+        # Items: list = Field(
+        #     description="list of item names that belongs to the group"
+        # )
         # Services: list = Field(description="services offered by the company. just service name")
 
     parser = JsonOutputParser(pydantic_object=ProductsInfo)
@@ -41,25 +51,31 @@ def get_company_segments_v2(html_path):
     # code to get business section html and RAG
     section_html = get_section_html(html_path, "business") 
     relevant_docs = VectorDBFunctions().get_relevant_documents_html(
-        section_html, f"what are the company's products and services and operations and solutions?")
+        section_html, f"Company's products, services, operations, and solutions.")
 
     # ---
     mistral_7b_chat = ChatMistralAI(
         mistral_api_key="XjDKSArDspNO81zsPXIFIQd06ib3x7nJ", model="mistral-small-latest"
     )
-    reduced_content = []
-    for doc in tqdm(relevant_docs, desc="reducing number of tokens"):
-        prompt = f"Document: \n {doc} \n---\n Given a document with distinct headings and a structured format, please compress the text under each heading. The compression should aim to reduce the overall length of the text by eliminating redundant information and simplifying sentences, while focusing on key points. It's crucial to maintain the integrity of the document's structure, including all headings, subheadings, and any bullet points or numbered lists. Ensure to explicitly retain all product and service and operations and solution names mentioned in the text. The goal is to create a concise version of the document that retains all critical information, including product and service and operations  solution names, and remains easy to navigate. Please ensure the compressed text under each heading is coherent, directly related to the heading, and that the transition between sections is smooth, with a particular emphasis on preserving the mention and context of all product names."
-        reduced_content.append(mistral_7b_chat.invoke([HumanMessage(content=prompt)]).content)
+    # reduced_content = []
+    # for doc in tqdm(relevant_docs, desc="reducing number of tokens"):
+    #     prompt = f"Document: \n {doc} \n---\n Given a document with distinct headings and a structured format, please compress the text under each heading. The compression should aim to reduce the overall length of the text by eliminating redundant information and simplifying sentences, while focusing on key points. It's crucial to maintain the integrity of the document's structure, including all headings, subheadings, and any bullet points or numbered lists. Ensure to explicitly retain all product and service and operations and solution names mentioned in the text. The goal is to create a concise version of the document that retains all critical information, including product and service and operations  solution names, and remains easy to navigate. Please ensure the compressed text under each heading is coherent, directly related to the heading, and that the transition between sections is smooth, with a particular emphasis on preserving the mention and context of all product names."
+    #     reduced_content.append(mistral_7b_chat.invoke([HumanMessage(content=prompt)]).content)
 
-    products_context = "\n---\n".join(reduced_content)
-    ques = "what are products and services and solutions and operations names offered or produced by the company. don't include description."
+
+    products_context = "\n---\n".join(relevant_docs)
+    ques = "Create a comprehensive document that includes detailed information about products, services, industry groups, market segments, solutions, subsidiaries, and businesses. Exclude any text that is not relevant to these categories."
+    ques = "Generate a document in Markdown format that encompasses detailed descriptions of the following key components: Products, Services, Industry Groups, Market Segments, Solutions, Subsidiaries, and Businesses. Organize the content with appropriate headings and subheadings to ensure clarity and ease of navigation. Exclude any information not directly related to these categories."
     prompt = f"{products_context} \n --- \n {ques}"
     with open('prompt.txt', 'w') as f:
-        f.write(prompt) 
+        f.write(prompt)
 
     logger.info('generating final products info...')
     output = chain.invoke({"query": prompt})
+    output = model.invoke([HumanMessage(content=prompt)]).content
+    with open('test.md', 'w') as f:
+        f.write(output)
+    return output
 
     # normalising ouput to single structure
     final_output = {}

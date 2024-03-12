@@ -42,7 +42,7 @@ ciks = ['LVS']
 
 
 # processing segment information
-company_folders = sorted(list(glob("data/Current/ACN")))
+company_folders = sorted(list(glob("data/Current/AAL")))
 for company in list(company_folders)[:5]:
     logger.info(f"processing company:{company}")
     latest_file = get_latest_file(company)
@@ -51,8 +51,8 @@ for company in list(company_folders)[:5]:
     # if os.path.exists(seg_info_path):
     #     continue
     segments_info = get_company_segments_v2(latest_file)
-    with open(seg_info_path, 'w', encoding='utf-8') as f:
-        json.dump(segments_info, f, indent=4, ensure_ascii=False)
+    # with open(seg_info_path, 'w', encoding='utf-8') as f:
+    #     json.dump(segments_info, f, indent=4, ensure_ascii=False)
 
 
 # html_path = "data/Current/AAPL/000032019320000096/aapl-20200926.htm"
