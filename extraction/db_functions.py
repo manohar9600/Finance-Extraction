@@ -13,6 +13,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from extraction.html_functions import get_pages_text
 from extraction.gpt_functions import summarize
 from tqdm import tqdm
+import io
 
 
 class DBFunctions:
@@ -30,10 +31,12 @@ class DBFunctions:
         conn = self._get_connection()
         cursor = conn.cursor()
         query = f"select * from {table_name}"
+        where_conditions = []
         if filter_dict:
-            query += " where"
             for key in filter_dict:
-                query += f" {key}={filter_dict[key]}"
+                where_conditions.append(f" {key}='{filter_dict[key]}'")
+        if where_conditions:
+            query += " where " + " and ".join(where_conditions)
         cursor.execute(query)
         df = pd.DataFrame(cursor, columns=[desc[0] for desc in cursor.description])
         conn.close()
@@ -122,6 +125,22 @@ class MinioDBFunctions:
         objects = client.list_objects(self.bucket_name, prefix=folder_name, recursive=True)
         objects = [obj.object_name for obj in objects]
         return objects
+    
+    def get_object(self, object_name):
+        client = self.get_client()
+        data = client.get_object(self.bucket_name, object_name)
+        return data.read()
+    
+    def put_object(self, object_name, data):
+        client = self.get_client()
+        client.put_object(
+            self.bucket_name,
+            object_name,
+            io.BytesIO(data.encode('utf-8')),
+            length=len(data),
+            content_type=mimetypes.guess_type(object_name)[0]
+        )
+        logger.info(f"put object to bucket. object_name:{object_name}")
 
 
 class VectorDBFunctions:

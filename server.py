@@ -10,6 +10,7 @@ from loguru import logger
 from extraction.db_functions import DBFunctions
 from extraction.utils import get_latest_file
 from company_scrapper.companyinfo import get_ticker_data
+from GPT.gpt import get_answer
 
 master_folder = 'data/Current'
 
@@ -197,12 +198,23 @@ class CompanyOverview(tornado.web.RequestHandler):
         self.write(ticker_data)
         
 
+class GPTHandler(MainHandler):
+
+    def post(self):
+        logger.info("--- question received ---")
+        data = json.loads(self.request.body)
+        answer = get_answer(data['question'])
+        self.set_header('Content-Type', 'text/plain; charset=utf-8')
+        self.write(answer)
+
+
 def make_app():
     return tornado.web.Application([
         (r"/all", AllHandler),
         (r"/meta", Metadata),
         (r"/companydata", CompanyData),
         (r"/companyoverview", CompanyOverview),
+        (r"/gpt", GPTHandler),
     ])
 
 
