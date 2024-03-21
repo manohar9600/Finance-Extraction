@@ -40,7 +40,7 @@ def get_time_diff(d1, d2):
     return diff.days
 
 
-class DataInsertor:
+class XBRLFunctions:
     def __init__(self, symbol, xbrl_data, hierarchy) -> None:
         self.symbol = symbol.upper()
         self.company_id = self.get_company_id()

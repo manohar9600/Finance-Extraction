@@ -7,7 +7,7 @@ from datetime import date, datetime
 from secedgar import CompanyFilings, FilingType
 from bs4 import BeautifulSoup
 from loguru import logger
-from extraction.data_insertor import DataInsertor, get_prod_variables
+from extraction.xbrl_functions import XBRLFunctions, get_prod_variables
 from extraction.db_functions import MinioDBFunctions, DBFunctions
 from extraction.data_processor import extract_segment_information
 
@@ -98,7 +98,7 @@ def match_insert_values(vars_df, xbrl_paths, folder_path, cik):
         xbrl_data, hierarchy = get_xbrl_data(path, folder_path)
         if not xbrl_data or not xbrl_data['factList']:
             continue
-        data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
+        data_insertor = XBRLFunctions(cik, xbrl_data, hierarchy)
         results = data_insertor.map_datapoint_values(vars_df, folder_path)
         if not results:
             continue
@@ -120,7 +120,7 @@ def reprocess_folder(folder_path, vars_df, cik):
     xbrl_data, hierarchy = get_xbrl_data('', folder_path)
     if not xbrl_data or not xbrl_data['factList']:
         return
-    data_insertor = DataInsertor(cik, xbrl_data, hierarchy)
+    data_insertor = XBRLFunctions(cik, xbrl_data, hierarchy)
     results = data_insertor.map_datapoint_values(vars_df, folder_path)
 
     # # uploading files to bucket

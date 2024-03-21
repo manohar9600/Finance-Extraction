@@ -5,6 +5,7 @@ from openpyxl.styles import Font, Alignment
 from glob import glob
 from datetime import datetime
 import json
+from datetime import timedelta
 
 
 def most_occuring_element(lst):
@@ -103,3 +104,7 @@ def get_latest_file(company_folder):
                 files_dates.append([file, result])
                 break
     return sorted(files_dates, key=lambda x:x[1], reverse=True)[0][0]
+
+def month_difference(date1, date2):
+    diff = (date1.year - date2.year) * 12 + date1.month - date2.month
+    return abs(diff)

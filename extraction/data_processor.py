@@ -3,7 +3,7 @@ import os
 import json
 import pandas as pd
 from glob import glob
-from extraction.data_insertor import DataInsertor
+from extraction.xbrl_functions import XBRLFunctions
 from extraction.utils import convert_to_number
 
 # segment tables extraction
@@ -82,7 +82,7 @@ def extract_segment_information(symbol, parent_folder):
             hierarchy = json.load(f)
         if not xbrl_data or not xbrl_data["factList"]:
             continue
-        doc_period = DataInsertor(symbol, xbrl_data, hierarchy).document_period
+        doc_period = XBRLFunctions(symbol, xbrl_data, hierarchy).document_period
         segment_items = get_segment_lineitems(xbrl_data)
         results = extract_revenue_information(results, segment_items, doc_period)
 

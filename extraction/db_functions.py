@@ -14,6 +14,7 @@ from extraction.html_functions import get_pages_text
 from extraction.gpt_functions import summarize
 from tqdm import tqdm
 import io
+from minio.error import S3Error
 
 
 class DBFunctions:
@@ -65,14 +66,14 @@ class DBFunctions:
         conn.close()
         return output
 
-    def add_document_metadata(self, symbol, publisheddate, filetype, folderlocation):
+    def add_document_metadata(self, symbol, publisheddate, filetype, folderlocation, period):
         companyid = self.get_company_id(symbol)
         conn = self._get_connection()
         cursor = conn.cursor()
-        columns = ["companyid", "publisheddate", "filetype", "folderlocation"]
+        columns = ["companyid", "publisheddate", "filetype", "folderlocation", "period"]
         cursor.execute(
             f"INSERT INTO documents({','.join(columns)}) VALUES({','.join(['%s']*len(columns))})",
-            [companyid, publisheddate, filetype, folderlocation],
+            [companyid, publisheddate, filetype, folderlocation, period],
         )
         conn.commit()
         conn.close()
@@ -90,10 +91,11 @@ class DBFunctions:
 class MinioDBFunctions:
     def __init__(self, bucket_name) -> None:
         self.bucket_name = bucket_name
+        self.url = "localhost:9000"
 
     def get_client(self):
         client = Minio(
-            "localhost:9000",
+            self.url,
             access_key="1T8p7bcYuD4DgWSRrUGn",
             secret_key="b849fJXr4IjXqATibsiljbrKWA1VrFK4XspD2Hn1",
             secure=False,  # Set to False if you are not using https
@@ -140,7 +142,17 @@ class MinioDBFunctions:
             length=len(data),
             content_type=mimetypes.guess_type(object_name)[0]
         )
-        logger.info(f"put object to bucket. object_name:{object_name}")
+        logger.info(f"object saved to bucket. object_name:{object_name}")
+    
+    def is_file_present(self, file_path):
+        client = self.get_client()
+        try:
+            # Attempt to get the file metadata
+            client.stat_object(self.bucket_name, file_path)
+            return True
+        except S3Error as exc:
+            if exc.code == "NoSuchKey":
+                return False
 
 
 class VectorDBFunctions:
