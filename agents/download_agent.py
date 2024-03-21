@@ -100,9 +100,12 @@ def process_sec_files(cik):
             if datetime.strptime(str(doc_period.year)+"-"+fiscal_year, "%Y-%m-%d") < doc_period:
                 notation_yr += 1
             period = str(notation_yr) + "Q" + str(months // 3)
-            db_fns.add_document_metadata(
+            if not db_fns.is_doc_instance_exists(
                 cik, document_period, doc_type, folder_path, period
-            )
+            ):
+                db_fns.add_document_metadata(
+                    cik, document_period, doc_type, folder_path, period
+                )
         logger.info(f"processed {filing_url}")
         pbar.update(1)
     pbar.close()
@@ -132,6 +135,31 @@ def download_file(link, folder_path):
     return file_content, file_path
 
 
+def get_xbrl_data(folder_path, links, html_file_path):
+    xbrl_path = os.path.join(folder_path, "xbrl_data.json")
+    if minio_fns.is_file_present(xbrl_path):
+        xbrl_json = minio_fns.get_object(xbrl_path)
+    else:
+        logger.info('generating xbrl')
+        cache: HttpCache = HttpCache(os.path.expanduser('~/.cache/xbrl_cache/'))
+        parser = XbrlParser(cache)
+        try:
+            xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
+                                                        'secreports', html_file_path))
+        except:
+            xml_link = ''
+            for link in links:
+                if link["href"].endswith(".xml"):
+                    xml_link = link["href"]
+                    break
+            xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
+                            'secreports', os.path.join(folder_path, xml_link)))
+        xbrl_json = xbrl_instance.json(override_fact_ids=True)
+        minio_fns.put_object(xbrl_path, xbrl_json)
+    xbrl_json = json.loads(xbrl_json)
+    return xbrl_json
+
+
 def process_sec_filing(filing_url, cik):
     html_master = "/".join(filing_url.split("/")[:-1])
     index_url = filing_url.replace(".txt", "-index-headers.html")
@@ -154,18 +182,7 @@ def process_sec_filing(filing_url, cik):
     minio_fns.put_object(f"{folder_path}/metadata.json", json.dumps(metadata))
 
     # parsing xbrl data
-    xbrl_path = os.path.join(folder_path, "xbrl_data.json")
-    if minio_fns.is_file_present(xbrl_path):
-        xbrl_json = minio_fns.get_object(xbrl_path)
-    else:
-        logger.info('generating xbrl')
-        cache: HttpCache = HttpCache(os.path.expanduser('~/.cache/xbrl_cache/'))
-        parser = XbrlParser(cache)
-        xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
-                                                        'secreports', html_file_path))
-        xbrl_json = xbrl_instance.json(override_fact_ids=True)
-        minio_fns.put_object(xbrl_path, xbrl_json)
-    xbrl_json = json.loads(xbrl_json)
+    xbrl_json = get_xbrl_data(folder_path, links, html_file_path)
     return xbrl_json, folder_path
 
 

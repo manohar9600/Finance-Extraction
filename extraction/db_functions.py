@@ -65,6 +65,17 @@ class DBFunctions:
             output[col] = company_data[i]
         conn.close()
         return output
+    
+    def is_doc_instance_exists(self, symbol, publisheddate, filetype, folderlocation, period):
+        companyid = self.get_company_id(symbol)
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT * FROM documents where companyid={companyid} and publisheddate='{publisheddate}' and filetype='{filetype}' and folderlocation='{folderlocation}' and period='{period}'"
+        )
+        response_data = cursor.fetchone()
+        conn.close()
+        return response_data is not None
 
     def add_document_metadata(self, symbol, publisheddate, filetype, folderlocation, period):
         companyid = self.get_company_id(symbol)
