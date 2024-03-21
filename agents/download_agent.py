@@ -1,4 +1,4 @@
-# --- dowload agent to fetch files from all companies.
+# --- download agent to fetch files for public sec companies.
 import os
 import sys
 import requests
@@ -170,4 +170,9 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    process_sec_files('AAL')
+    tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
+    pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
+    for tic in tickers:
+        process_sec_files(tic)
+        pbar.update(1)
+    pbar.close()
