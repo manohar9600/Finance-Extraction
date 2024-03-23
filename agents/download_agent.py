@@ -100,12 +100,12 @@ def process_sec_files(cik):
             if datetime.strptime(str(doc_period.year)+"-"+fiscal_year, "%Y-%m-%d") < doc_period:
                 notation_yr += 1
             period = str(notation_yr) + "Q" + str(months // 3)
-            if not db_fns.is_doc_instance_exists(
+        if not db_fns.is_doc_instance_exists(
+            cik, document_period, doc_type, folder_path, period
+        ):
+            db_fns.add_document_metadata(
                 cik, document_period, doc_type, folder_path, period
-            ):
-                db_fns.add_document_metadata(
-                    cik, document_period, doc_type, folder_path, period
-                )
+            )
         logger.info(f"processed {filing_url}")
         pbar.update(1)
     pbar.close()
@@ -187,9 +187,12 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
-    pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
-    for tic in tickers:
-        process_sec_files(tic)
-        pbar.update(1)
-    pbar.close()
+    process_sec_files('AAL')
+
+    # -- full run --
+    # tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
+    # pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
+    # for tic in tickers:
+    #     process_sec_files(tic)
+    #     pbar.update(1)
+    # pbar.close()

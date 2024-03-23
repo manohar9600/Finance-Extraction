@@ -58,8 +58,8 @@ class DBFunctions:
         response_data = cursor.fetchone()
         if response_data is None:
             return {}
-        columns = [desc[0] for desc in cursor.description][1:]
-        company_data = response_data[1:]
+        columns = [desc[0] for desc in cursor.description]
+        company_data = response_data
         output = {}
         for i, col in enumerate(columns):
             output[col] = company_data[i]
