@@ -88,6 +88,8 @@ def process_sec_files(cik):
     for filing_url in filing_urls:
         logger.info(f"processing {filing_url}")
         xbrl_data, folder_path = process_sec_filing(filing_url, cik)
+        if not xbrl_data or not xbrl_data.get("facts", []):
+            continue
         document_period = search_xbrl_data(xbrl_data, "DocumentPeriodEndDate")
         doc_type = search_xbrl_data(xbrl_data, "DocumentType").replace("-", "")
         doc_period = datetime.strptime(document_period, "%Y-%m-%d") 
@@ -187,12 +189,12 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    process_sec_files('AAL')
+    # process_sec_files('AAL')
 
     # -- full run --
-    # tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
-    # pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
-    # for tic in tickers:
-    #     process_sec_files(tic)
-    #     pbar.update(1)
-    # pbar.close()
+    tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
+    pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
+    for tic in tickers:
+        process_sec_files(tic)
+        pbar.update(1)
+    pbar.close()

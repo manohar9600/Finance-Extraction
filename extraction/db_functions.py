@@ -71,7 +71,7 @@ class DBFunctions:
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT * FROM documents where companyid={companyid} and publisheddate='{publisheddate}' and ReportType='{report_type}' and folderlocation='{folderlocation}' and period='{period}'"
+            f"SELECT * FROM documents where companyid={companyid} and publisheddate='{publisheddate}' and \"ReportType\"='{report_type}' and folderlocation='{folderlocation}' and period='{period}'"
         )
         response_data = cursor.fetchone()
         conn.close()
@@ -81,7 +81,7 @@ class DBFunctions:
         companyid = self.get_company_id(symbol)
         conn = self._get_connection()
         cursor = conn.cursor()
-        columns = ["companyid", "publisheddate", "ReportType", "folderlocation", "period"]
+        columns = ["companyid", "publisheddate", "\"ReportType\"", "folderlocation", "period"]
         cursor.execute(
             f"INSERT INTO documents({','.join(columns)}) VALUES({','.join(['%s']*len(columns))})",
             [companyid, publisheddate, report_type, folderlocation, period],
