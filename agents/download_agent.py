@@ -38,7 +38,7 @@ def get_company_filing_urls(cik):
             "documents",
             filter_dict={
                 "companyid": company_id,
-                "filetype": filing_type.value.replace("-", ""),
+                "ReportType": filing_type.value.replace("-", ""),
             },
         )
 

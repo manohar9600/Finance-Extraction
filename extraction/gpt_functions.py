@@ -7,12 +7,25 @@ from mistralai.models.chat_completion import ChatMessage
 import google.generativeai as genai
 from langchain_mistralai.chat_models import ChatMistralAI
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_anthropic.experimental import ChatAnthropicTools
+from langchain_openai import ChatOpenAI
 
 
 # todo change to system variable and remove open_ai_key
 open_ai_key = "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"
 openai.api_key = open_ai_key
 mistral_api_key = "XjDKSArDspNO81zsPXIFIQd06ib3x7nJ"
+
+
+haiku_llm = ChatAnthropicTools(
+    anthropic_api_key="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",
+    model="claude-3-haiku-20240307")
+
+
+gpt4_llm = ChatOpenAI(
+    openai_api_key="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",
+    model="gpt-4-0125-preview" # gpt-3.5-turbo-0125
+)
 
 
 def generate_markdown_table(columns, table_body):

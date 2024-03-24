@@ -35,7 +35,7 @@ class DBFunctions:
         where_conditions = []
         if filter_dict:
             for key in filter_dict:
-                where_conditions.append(f" {key}='{filter_dict[key]}'")
+                where_conditions.append(f" \"{key}\"='{filter_dict[key]}'")
         if where_conditions:
             query += " where " + " and ".join(where_conditions)
         cursor.execute(query)
@@ -66,25 +66,25 @@ class DBFunctions:
         conn.close()
         return output
     
-    def is_doc_instance_exists(self, symbol, publisheddate, filetype, folderlocation, period):
+    def is_doc_instance_exists(self, symbol, publisheddate, report_type, folderlocation, period):
         companyid = self.get_company_id(symbol)
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            f"SELECT * FROM documents where companyid={companyid} and publisheddate='{publisheddate}' and filetype='{filetype}' and folderlocation='{folderlocation}' and period='{period}'"
+            f"SELECT * FROM documents where companyid={companyid} and publisheddate='{publisheddate}' and ReportType='{report_type}' and folderlocation='{folderlocation}' and period='{period}'"
         )
         response_data = cursor.fetchone()
         conn.close()
         return response_data is not None
 
-    def add_document_metadata(self, symbol, publisheddate, filetype, folderlocation, period):
+    def add_document_metadata(self, symbol, publisheddate, report_type, folderlocation, period):
         companyid = self.get_company_id(symbol)
         conn = self._get_connection()
         cursor = conn.cursor()
-        columns = ["companyid", "publisheddate", "filetype", "folderlocation", "period"]
+        columns = ["companyid", "publisheddate", "ReportType", "folderlocation", "period"]
         cursor.execute(
             f"INSERT INTO documents({','.join(columns)}) VALUES({','.join(['%s']*len(columns))})",
-            [companyid, publisheddate, filetype, folderlocation, period],
+            [companyid, publisheddate, report_type, folderlocation, period],
         )
         conn.commit()
         conn.close()

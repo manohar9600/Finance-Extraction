@@ -12,16 +12,12 @@ import json
 from extraction.html_functions import get_pages_text
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers.openai_tools import JsonOutputToolsParser
-from langchain_anthropic.experimental import ChatAnthropicTools
+from extraction.gpt_functions import haiku_llm, gpt4_llm
 from loguru import logger
-
-llm = ChatAnthropicTools(
-    anthropic_api_key="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",
-    model="claude-3-sonnet-20240229")
 
 
 def download_file(ticker: str, document_type: str, period: str, question:str) -> str:
-    """Function fetches the file from the location and returns the file to user. This function is called when user asks to download the file.
+    """Function fetches the file from the location and returns the file to user. This function should be called when user specifically asks to download the file.
 
     Args:
         ticker: ticker of the company
@@ -31,11 +27,11 @@ def download_file(ticker: str, document_type: str, period: str, question:str) ->
     db = DBFunctions()
     company_id = db.get_company_id(ticker)
     document_info = db.get_table_data('documents', filter_dict={
-        'companyid': company_id, 'filetype': document_type.replace('-', ''), 
+        'companyid': company_id, 'ReportType': document_type.replace('-', ''), 
         'period': period})
 
     if document_info.empty:
-        return ''
+        return 'Requested data is not yet available. Please try again later.'
     document_folder = document_info.iloc[0]['folderlocation']
 
     minio_fns = MinioDBFunctions('secreports')
@@ -44,7 +40,9 @@ def download_file(ticker: str, document_type: str, period: str, question:str) ->
 
 
 def get_answer(ticker: str, document_type: str, period: str, question:str) -> str:
-    """Function processes the file and returns the answer to the user. This function is called when user asks to get the answer.
+    """This function processes user questions. This should be triggered when user has other requirement apart from downloading file.
+    If user asks to download and fetch details, this function should be called after downloading file.
+    If user asks to fetch details without there is mention of downloading file, this function should be called directly.
 
     Args:
         ticker: ticker of the company
@@ -54,11 +52,12 @@ def get_answer(ticker: str, document_type: str, period: str, question:str) -> st
     db = DBFunctions()
     company_id = db.get_company_id(ticker)
     document_info = db.get_table_data('documents', filter_dict={
-        'companyid': company_id, 'filetype': document_type.replace('-', ''), 
+        'companyid': company_id, 'ReportType': document_type.replace('-', ''), 
         'period': period})
 
     if document_info.empty:
-        return ''
+        return 'Requested data is not yet available. Please try again later.'
+    
     document_folder = document_info.iloc[0]['folderlocation']
 
     minio_fns = MinioDBFunctions('secreports')
@@ -68,7 +67,7 @@ def get_answer(ticker: str, document_type: str, period: str, question:str) -> st
     relevant_docs = get_relevant_docs(pages, question)
     context = '\n'.join(relevant_docs)
     prompt = f"context:{context}, question:{question}"
-    final_ans = llm.invoke([
+    final_ans = haiku_llm.invoke([
         SystemMessage(content="You're helpful assistant. Answer question from given context"),
         HumanMessage(content=prompt)
     ]).content
@@ -77,8 +76,11 @@ def get_answer(ticker: str, document_type: str, period: str, question:str) -> st
 
 def process_question(question):
     company_info = get_company_info(question)
+    if company_info is None:
+        return 'Requested data is not yet available. Please try again later.'
+    
     prompt = f"avaible documents: \n{company_info['docs'].to_markdown()} \n\n question: {question} \n today's date: {datetime.now().strftime('%B %d, %Y')} \n fiscal year-end (MM-DD): {company_info['Fiscal Year']} \n Call relevant function to follow above question."
-    llm_with_tools = llm.bind_tools([download_file, get_answer])
+    llm_with_tools = gpt4_llm.bind_tools([download_file, get_answer])
     tool_chain = llm_with_tools | JsonOutputToolsParser()
     response = tool_chain.invoke(prompt)
     print(response)
@@ -91,8 +93,7 @@ def process_question(question):
     answer = ''
     for tool in response:
         fn_to_call = available_functions[tool['type']]
-        tool['args']['question'] = question
-        answer += fn_to_call(**tool['args'])
+        answer = answer + '\n' + fn_to_call(**tool['args'])
     return answer
 
 
@@ -110,13 +111,15 @@ def get_company_info(question):
         partial_variables={"format_instructions": parser.get_format_instructions()},
     )
 
-    chain = prompt | llm | parser
+    chain = prompt | haiku_llm | parser
     prompt = f"context: {question}, fill values required to in json"
 
     query_data = chain.invoke({"query": prompt})
     ticker = query_data['Ticker']
     db_conn = DBFunctions()
     company_info = db_conn.get_company_info(ticker)
+    if not company_info:
+        return None
     logger.info(f"company: {company_info['Name']}")
     company_info['docs'] = db_conn.get_table_data(
         "documents", filter_dict={"companyid": company_info['id']})
