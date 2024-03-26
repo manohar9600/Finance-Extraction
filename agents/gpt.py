@@ -12,7 +12,7 @@ import json
 from extraction.html_functions import get_pages_text
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers.openai_tools import JsonOutputToolsParser
-from extraction.gpt_functions import haiku_llm, gpt4_llm
+from extraction.gpt_functions import gpt4_llm, haiku_llm, get_haiku_answer
 from loguru import logger
 
 
@@ -67,11 +67,7 @@ def get_answer(ticker: str, document_type: str, period: str, question:str) -> st
     relevant_docs = get_relevant_docs(pages, question)
     context = '\n'.join(relevant_docs)
     prompt = f"context:{context}, question:{question}"
-    final_ans = haiku_llm.invoke([
-        SystemMessage(content="You're helpful assistant. Answer question from given context"),
-        HumanMessage(content=prompt)
-    ]).content
-    return final_ans
+    return get_haiku_answer(prompt)
 
 
 def process_question(question):
@@ -90,11 +86,11 @@ def process_question(question):
         "get_answer": get_answer
     }
 
-    answer = ''
-    for tool in response:
-        fn_to_call = available_functions[tool['type']]
-        answer = answer + '\n' + fn_to_call(**tool['args'])
-    return answer
+    # answer = ''
+    # for tool in response:
+    #     fn_to_call = available_functions[tool['type']]
+    #     answer = answer + '\n' + fn_to_call(**tool['args'])
+    return get_answer(**response[0]['args'])
 
 
 def get_company_info(question):

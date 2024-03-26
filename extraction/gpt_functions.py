@@ -1,5 +1,7 @@
 import openai
+import os
 import time
+import anthropic
 from loguru import logger
 from langchain_openai import OpenAIEmbeddings
 from mistralai.client import MistralClient
@@ -15,6 +17,7 @@ from langchain_openai import ChatOpenAI
 open_ai_key = "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"
 openai.api_key = open_ai_key
 mistral_api_key = "XjDKSArDspNO81zsPXIFIQd06ib3x7nJ"
+os.environ["ANTHROPIC_API_KEY"] = "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"
 
 
 haiku_llm = ChatAnthropicTools(
@@ -173,3 +176,15 @@ def get_gemini_answer(prompt):
     genai.configure(api_key=google_ai_api_key)
     model = genai.GenerativeModel('gemini-pro')
     return model.generate_content(prompt).text
+
+
+def get_haiku_answer(prompt, stream=True):
+    client = anthropic.Anthropic()
+
+    with client.messages.stream(
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+        model="claude-3-haiku-20240307",
+    ) as stream:
+        for text in stream.text_stream:
+            yield text

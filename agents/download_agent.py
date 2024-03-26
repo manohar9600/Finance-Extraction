@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from enlighten import get_manager
 from xbrl.cache import HttpCache
 from xbrl.instance import XbrlParser
+from xml.etree.ElementTree import ParseError
 
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_script_dir)
@@ -89,6 +90,7 @@ def process_sec_files(cik):
         logger.info(f"processing {filing_url}")
         xbrl_data, folder_path = process_sec_filing(filing_url, cik)
         if not xbrl_data or not xbrl_data.get("facts", []):
+            logger.info('got empty xbrl data')
             continue
         document_period = search_xbrl_data(xbrl_data, "DocumentPeriodEndDate")
         doc_type = search_xbrl_data(xbrl_data, "DocumentType").replace("-", "")
@@ -148,7 +150,7 @@ def get_xbrl_data(folder_path, links, html_file_path):
         try:
             xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
                                                         'secreports', html_file_path))
-        except:
+        except ParseError as e:
             xml_link = ''
             for link in links:
                 if link["href"].endswith(".xml"):
@@ -189,7 +191,7 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    # process_sec_files('AAL')
+    process_sec_files('ACGL')
 
     # -- full run --
     tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
