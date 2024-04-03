@@ -11,7 +11,7 @@ from extraction.db_functions import DBFunctions
 from extraction.utils import get_latest_file
 from company_scrapper.companyinfo import get_ticker_data
 from extraction.gpt_functions import *
-from agents.gpt import process_question
+from agents.gpt import GPT
 
 master_folder = 'data/Current'
 
@@ -71,7 +71,7 @@ def get_company_data(company_symbol):
 
 
 def get_cleaned_row(row_dict):
-    minio_server_url = 'http://192.168.1.2:9000/secreports/'
+    minio_server_url = 'http://localhost:9000/secreports/'
     required_fields = ["value", "type"]
     final_dict = {}
     for key in row_dict:
@@ -205,7 +205,8 @@ class GPTHandler(MainHandler):
         data = json.loads(self.request.body)
         self.set_header('Content-Type', 'text/event-stream')
         self.set_header('Cache-Control', 'no-cache')
-        answer = process_question(data['question'])
+        gpt = GPT(data['uid'])
+        answer = gpt.process_question(data['question'])
         self.flush()
         for s in answer:
             self.write(s)
@@ -226,7 +227,7 @@ def make_app():
 
 if __name__ == "__main__":
     app = make_app()
-    port = 9002
+    port = 9012
     app.listen(port)
     logger.info(f"listening on port {port}")
     tornado.ioloop.IOLoop.current().start()

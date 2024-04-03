@@ -130,7 +130,7 @@ def download_file(link, folder_path):
         return "", ""
 
     file_name = link.split("/")[-1]
-    file_path = os.path.join(folder_path, file_name)
+    file_path = folder_path + '/' + file_name
 
     if minio_fns.is_file_present(file_path):
         file_content = minio_fns.get_object(file_path)
@@ -140,7 +140,7 @@ def download_file(link, folder_path):
 
 
 def get_xbrl_data(folder_path, links, html_file_path):
-    xbrl_path = os.path.join(folder_path, "xbrl_data.json")
+    xbrl_path = folder_path + '/' + "xbrl_data.json"
     if minio_fns.is_file_present(xbrl_path):
         xbrl_json = minio_fns.get_object(xbrl_path)
     else:
@@ -148,16 +148,16 @@ def get_xbrl_data(folder_path, links, html_file_path):
         cache: HttpCache = HttpCache(os.path.expanduser('~/.cache/xbrl_cache/'))
         parser = XbrlParser(cache)
         try:
-            xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
-                                                        'secreports', html_file_path))
+            xbrl_instance = parser.parse_instance("http://" + minio_fns.url +
+                                                  '/secreports/' + html_file_path)
         except ParseError as e:
             xml_link = ''
             for link in links:
                 if link["href"].endswith(".xml"):
                     xml_link = link["href"]
                     break
-            xbrl_instance = parser.parse_instance(os.path.join("http://"+minio_fns.url, 
-                            'secreports', os.path.join(folder_path, xml_link)))
+            xbrl_instance = parser.parse_instance("http://"+ minio_fns.url + '/secreports/' + 
+                                                  folder_path + '/'+ xml_link)
         xbrl_json = xbrl_instance.json(override_fact_ids=True)
         minio_fns.put_object(xbrl_path, xbrl_json)
     xbrl_json = json.loads(xbrl_json)
@@ -178,7 +178,7 @@ def process_sec_filing(filing_url, cik):
         pbar.update(1)
     pbar.close()
 
-    html_file_path = os.path.join(folder_path, links[0]["href"].split("/")[-1])
+    html_file_path = folder_path + '/' + links[0]["href"].split("/")[-1]
     metadata = {
         "cik": cik,
         "filingDirectory": html_master,
@@ -191,12 +191,12 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    process_sec_files('ACGL')
+    process_sec_files('AAPL')
 
-    # -- full run --
-    tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
-    pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
-    for tic in tickers:
-        process_sec_files(tic)
-        pbar.update(1)
-    pbar.close()
+    # # -- full run --
+    # tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
+    # pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
+    # for tic in tickers:
+    #     process_sec_files(tic)
+    #     pbar.update(1)
+    # pbar.close()

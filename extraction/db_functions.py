@@ -10,11 +10,13 @@ from loguru import logger
 from langchain_community.vectorstores import Chroma
 from langchain.docstore.document import Document
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from extraction.html_functions import get_pages_text
 from extraction.gpt_functions import summarize
 from tqdm import tqdm
 import io
 from minio.error import S3Error
+import redis
 
 
 class DBFunctions:
@@ -24,7 +26,7 @@ class DBFunctions:
     @staticmethod
     def _get_connection():
         conn = psycopg2.connect(
-            database="ProdDB", host="localhost", user="postgres", password="manu1234", port="5432"
+            database="ProdDB", host="localhost", user="postgres", password="manu@960", port="5432"
         )
         return conn
 
@@ -107,8 +109,8 @@ class MinioDBFunctions:
     def get_client(self):
         client = Minio(
             self.url,
-            access_key="1T8p7bcYuD4DgWSRrUGn",
-            secret_key="b849fJXr4IjXqATibsiljbrKWA1VrFK4XspD2Hn1",
+            access_key="ARwMHgQXQeGFaCojdTG0",
+            secret_key="4rkrfMH2Vba52VkP7afhdCvo3FuOU0cAv3YQL5Ey",
             secure=False,  # Set to False if you are not using https
         )
 
@@ -173,7 +175,8 @@ class VectorDBFunctions:
         collection_name = hashlib.sha224(html.encode('utf-8')).hexdigest()
         vectorstore = Chroma(
             collection_name=collection_name,
-            embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
+            # embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
+            embedddding_function=OpenAIEmbeddings(model="text-embedding-3-large"),
             persist_directory="/home/manu/Data/vectorcache"
         )
         if vectorstore._collection.count() < 3:
@@ -196,6 +199,39 @@ class VectorDBFunctions:
         return relevant_docs
 
 
+class RedisFunctions:
+
+    def __init__(self) -> None:
+        pass
+
+    def start_status(self, steps, uid):
+        if uid is None:
+            return
+        status_json = {
+            'steps': steps,
+            'completed': 0,
+            'status': 'Process Intialised'
+        }
+        self.put_data(status_json, uid)
+
+    def update_status(self, status, uid):
+        if uid is None:
+            return
+        status_json = self.get_data(uid)
+        status_json['completed'] += 1
+        status_json['status'] = status
+        self.put_data(status_json, uid)
+
+    def put_data(self, data, uid):
+        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        r.set(uid, json.dumps(data))
+        
+    def get_data(self, uid):
+        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        status_json = json.loads(r.get(uid))
+        return status_json
+
+
 def get_segment_data(symbol):
     file_path = os.path.join(
         r"/home/manu/Projects/Finance-Extraction/data/Current",
@@ -207,3 +243,4 @@ def get_segment_data(symbol):
         with open(file_path, 'r') as f:
             data = json.load(f)
     return data
+    
