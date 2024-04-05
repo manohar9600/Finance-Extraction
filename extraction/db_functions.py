@@ -209,7 +209,7 @@ class RedisFunctions:
             return
         status_json = {
             'steps': steps,
-            'completed': 0,
+            'completed': -1,
             'status': 'Process Intialised'
         }
         self.put_data(status_json, uid)

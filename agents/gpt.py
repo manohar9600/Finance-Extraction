@@ -1,4 +1,6 @@
 import os
+import re
+import hashlib
 from langchain_community.vectorstores import Chroma
 from langchain.docstore.document import Document
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -81,7 +83,7 @@ class GPT:
         html = minio_fns.get_object(metadata['mainHTML'])
         rd_fns.update_status("Reading and Understanding the document", self.uid)
         pages = get_pages_text(html)
-        relevant_docs = get_relevant_docs(pages, question)
+        relevant_docs = get_relevant_docs(pages, question, metadata['mainHTML'])
         context = '\n'.join(relevant_docs)
         prompt = f"context:{context}, question:{question}"
         rd_fns.update_status("Generating final answer", self.uid)
@@ -89,7 +91,7 @@ class GPT:
 
 
     def process_question(self, question):
-        rd_fns.start_status(steps=4, uid=self.uid)
+        rd_fns.start_status(steps=3, uid=self.uid)
         rd_fns.update_status("Analysing company info", self.uid)
         company_info = get_company_info(question)
         if company_info is None:
@@ -143,15 +145,21 @@ def get_company_info(question):
     return company_info
 
 
-def get_relevant_docs(pages, question):
-    collection_name = str(uuid.uuid4())
+def get_relevant_docs(pages, question, html_path):
+    def hash_list_of_strings(strings):
+        sha_signature = hashlib.sha256()
+        for string in strings:
+            sha_signature.update(string.encode())
+        return sha_signature.hexdigest()
+
+    collection_name = re.sub("[^a-zA-Z]", "", html_path)[-20:] + hash_list_of_strings(pages)[:40]
     vectorstore = Chroma(
         collection_name=collection_name,
         # embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
         embedding_function=CustomOpenAIEmbeddings(
             model="text-embedding-3-large", 
             openai_api_key="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"),
-        # persist_directory="/home/manu/Data/vectorcache"
+        persist_directory=os.path.expanduser("~/Data/vectorcache")
     )
     documents = [Document(page_content=s, metadata={'page':i+1}) for i, s in enumerate(pages)]
     if not vectorstore._collection.count():
