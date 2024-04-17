@@ -26,7 +26,7 @@ class DBFunctions:
     @staticmethod
     def _get_connection():
         conn = psycopg2.connect(
-            database="ProdDB", host="localhost", user="postgres", password="manu@960", port="5432"
+            database="ProdDB", host="localhost", user="postgres", password="manu1234", port="5432"
         )
         return conn
 
@@ -109,8 +109,8 @@ class MinioDBFunctions:
     def get_client(self):
         client = Minio(
             self.url,
-            access_key="ARwMHgQXQeGFaCojdTG0",
-            secret_key="4rkrfMH2Vba52VkP7afhdCvo3FuOU0cAv3YQL5Ey",
+            access_key="0UFexwf9t2qvvo8IAzQu",
+            secret_key="nsZN8fZE3sodtvs0NDyvaq0nci7Rvwa79aCvE5ai",
             secure=False,  # Set to False if you are not using https
         )
 
@@ -209,7 +209,7 @@ class RedisFunctions:
             return
         status_json = {
             'steps': steps,
-            'completed': -1,
+            'completed': 0,
             'status': 'Process Intialised'
         }
         self.put_data(status_json, uid)

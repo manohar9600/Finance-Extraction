@@ -227,7 +227,7 @@ def make_app():
 
 if __name__ == "__main__":
     app = make_app()
-    port = 9012
+    port = 9110
     app.listen(port)
     logger.info(f"listening on port {port}")
     tornado.ioloop.IOLoop.current().start()

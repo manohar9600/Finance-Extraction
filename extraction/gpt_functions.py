@@ -22,12 +22,17 @@ os.environ["ANTHROPIC_API_KEY"] = "sk-ant-api03-KQlTbBBhTDvKGCNTWRh_g6Sbl-nAvv68
 
 haiku_llm = ChatAnthropicTools(
     anthropic_api_key="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",
-    model="claude-3-haiku-20240307")
+    model="claude-3-haiku-20240307") # anthropic fastest model.
 
 
 gpt4_llm = ChatOpenAI(
     openai_api_key="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",
     model="gpt-4-0125-preview" # gpt-3.5-turbo-0125
+)
+
+gpt3_llm = ChatOpenAI(
+    openai_api_key="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",
+    model="gpt-3.5-turbo-0125"
 )
 
 
@@ -102,16 +107,18 @@ def word_to_num(s):
     return "{:,}".format(total)
 
 
-def get_gpt_answer(prompt, model="gpt-3.5-turbo-0125"):
+def get_gpt_answer(messages, model="gpt-3.5-turbo-0125"):
     response = openai.chat.completions.create(
         model=model,
-        messages=[
-            {"role": "user", "content": prompt},
-        ],
-    temperature=1
+        messages=messages,
+    temperature=1,
+    stream=True
     )
-    result = response.choices[0].message.content
-    return result
+    for chunk in response:
+        if chunk.choices[0].delta.content is not None:
+            yield chunk.choices[0].delta.content
+    # result = response.choices[0].message.content
+    # return result
 
 
 def get_gpt_answer_json(prompt, model="gpt-3.5-turbo-0125"):
@@ -178,12 +185,12 @@ def get_gemini_answer(prompt):
     return model.generate_content(prompt).text
 
 
-def get_haiku_answer(prompt, stream=True):
+def get_haiku_answer(messages, stream=True):
     client = anthropic.Anthropic()
 
     with client.messages.stream(
         max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
+        messages=messages,
         model="claude-3-haiku-20240307",
     ) as stream:
         for text in stream.text_stream:

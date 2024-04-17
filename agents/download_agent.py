@@ -13,6 +13,7 @@ from enlighten import get_manager
 from xbrl.cache import HttpCache
 from xbrl.instance import XbrlParser
 from xml.etree.ElementTree import ParseError
+from dateutil.parser import parse as dateparse
 
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_script_dir)
@@ -94,7 +95,8 @@ def process_sec_files(cik):
             continue
         document_period = search_xbrl_data(xbrl_data, "DocumentPeriodEndDate")
         doc_type = search_xbrl_data(xbrl_data, "DocumentType").replace("-", "")
-        doc_period = datetime.strptime(document_period, "%Y-%m-%d") 
+        # doc_period = datetime.strptime(document_period, "%Y-%m-%d") 
+        doc_period = dateparse(document_period)
         if doc_type == "10K":
             period = str(doc_period.year) + "FY"
         elif doc_type == "10Q":
@@ -191,7 +193,7 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    process_sec_files('AAPL')
+    process_sec_files('MSFT')
 
     # # -- full run --
     # tickers = db_fns.get_table_data('companies')['Symbol'].to_list()

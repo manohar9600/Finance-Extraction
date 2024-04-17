@@ -32,8 +32,65 @@ class CustomOpenAIEmbeddings(OpenAIEmbeddings):
         return self._embed_documents(input)    # <--- get the embeddings
 
 class GPT:
-    def __init__(self, uid) -> None:
+    def __init__(self, uid=None) -> None:
         self.uid = uid
+    
+    def process_question(self, question):
+        rd_fns.start_status(steps=150, uid=self.uid)
+        rd_fns.update_status("Understanding the question", self.uid)
+        class QuestionsJson(BaseModel):
+            questions: list = Field(description="Breakdown of the question into individual questions(field name should be 'question'). So that one single question can be asked to single document. Include type of question. It can be either 'information_request' or 'aggregator'. Aggregator questions should be last")
+        
+        parser = JsonOutputParser(pydantic_object=QuestionsJson)
+        prompt = PromptTemplate(
+            template="Answer the user query.\n{format_instructions}\n{query}\n",
+            input_variables=["query"],
+            partial_variables={"format_instructions": parser.get_format_instructions()},
+        )
+        chain = prompt | haiku_llm | parser
+        prompt = f"context: {question}, fill values required to in json."
+        query_data = chain.invoke({"query": prompt})
+        messages = []
+        steps_count = 4*len([q for q in query_data['questions'] if q['type'] == 'information_request']) + 1
+        rd_fns.start_status(steps=steps_count, uid=self.uid)
+        for q in query_data['questions']:
+            if q['type'] == 'information_request':
+                answer = self.get_answer_doc(q['question'])
+                if len(query_data['questions']) <= 1:
+                    rd_fns.update_status("Final answer .... ", self.uid)
+                    return answer
+                messages.append({"role": "user", "content": q['question']})
+                messages.append({"role": "assistant", "content": "".join(list(answer))})
+            elif q['type'] == 'aggregator':
+                rd_fns.update_status("Final answer .... ", self.uid)
+                messages.append({"role": "user", "content": q['question']})
+                return get_haiku_answer(messages)
+
+        return 'failed to get data'
+
+    def get_answer_doc(self, question):
+        rd_fns.update_status("Analysing company info", self.uid)
+        company_info = get_company_info(question)
+        if company_info is None:
+            return 'Requested data is not yet available. Please try again later.'
+        
+        rd_fns.update_status(f"Searching for relevant documents from {company_info['Name']}", self.uid)
+        prompt = f"avaible documents: \n{company_info['docs'].to_markdown()} \n\n question: {question} \n today's date: {datetime.now().strftime('%B %d, %Y')} \n fiscal year-end (MM-DD): {company_info['Fiscal Year']} \n Call relevant function to follow above question."
+        llm_with_tools = gpt4_llm.bind_tools([self.download_file, self.get_answer])
+        tool_chain = llm_with_tools | JsonOutputToolsParser()
+        response = tool_chain.invoke(prompt)
+        # print(response)
+
+        available_functions = {
+            "download_file": self.download_file,
+            "get_answer": self.get_answer
+        }
+
+        # answer = ''
+        # for tool in response:
+        #     fn_to_call = available_functions[tool['type']]
+        #     answer = answer + '\n' + fn_to_call(**tool['args'])
+        return self.get_answer(**response[0]['args'])
 
     def download_file(self, ticker: str, document_type: str, period: str, question:str) -> str:
         """Function fetches the file from the location and returns the file to user. This function should be called when user specifically asks to download the file.
@@ -81,39 +138,13 @@ class GPT:
         minio_fns = MinioDBFunctions('secreports')
         metadata = json.loads(minio_fns.get_object(document_folder+'/metadata.json'))
         html = minio_fns.get_object(metadata['mainHTML'])
-        rd_fns.update_status("Reading and Understanding the document", self.uid)
+        rd_fns.update_status(f"Reading and Understanding the document. for period: {period} and company: {ticker}", self.uid)
         pages = get_pages_text(html)
         relevant_docs = get_relevant_docs(pages, question, metadata['mainHTML'])
         context = '\n'.join(relevant_docs)
         prompt = f"context:{context}, question:{question}"
-        rd_fns.update_status("Generating final answer", self.uid)
-        return get_haiku_answer(prompt)
-
-
-    def process_question(self, question):
-        rd_fns.start_status(steps=3, uid=self.uid)
-        rd_fns.update_status("Analysing company info", self.uid)
-        company_info = get_company_info(question)
-        if company_info is None:
-            return 'Requested data is not yet available. Please try again later.'
-        
-        rd_fns.update_status("Searching for relevant documents", self.uid)
-        prompt = f"avaible documents: \n{company_info['docs'].to_markdown()} \n\n question: {question} \n today's date: {datetime.now().strftime('%B %d, %Y')} \n fiscal year-end (MM-DD): {company_info['Fiscal Year']} \n Call relevant function to follow above question."
-        llm_with_tools = gpt4_llm.bind_tools([self.download_file, self.get_answer])
-        tool_chain = llm_with_tools | JsonOutputToolsParser()
-        response = tool_chain.invoke(prompt)
-        print(response)
-
-        available_functions = {
-            "download_file": self.download_file,
-            "get_answer": self.get_answer
-        }
-
-        # answer = ''
-        # for tool in response:
-        #     fn_to_call = available_functions[tool['type']]
-        #     answer = answer + '\n' + fn_to_call(**tool['args'])
-        return self.get_answer(**response[0]['args'])
+        rd_fns.update_status("Getting final information from document", self.uid)
+        return get_haiku_answer(messages = [{"role": "user", "content": prompt}])
 
 
 def get_company_info(question):
@@ -165,7 +196,7 @@ def get_relevant_docs(pages, question, html_path):
     if not vectorstore._collection.count():
         vectorstore.add_documents(documents)
 
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 6})
     relevant_docs = retriever.get_relevant_documents(question)
     relevant_docs = sorted(relevant_docs, key=lambda x: int(x.metadata['page']))
     logger.debug(f"RAG selected pages: {','.join([str(x.metadata['page']) for x in relevant_docs])}")
