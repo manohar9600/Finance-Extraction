@@ -50,23 +50,32 @@ class GPT:
         chain = prompt | haiku_llm | parser
         prompt = f"context: {question}, fill values required to in json."
         query_data = chain.invoke({"query": prompt})
-        messages = []
         steps_count = 4*len([q for q in query_data['questions'] if q['type'] == 'information_request']) + 1
         rd_fns.start_status(steps=steps_count, uid=self.uid)
+        messages = []
+        sources = []
         for q in query_data['questions']:
             if q['type'] == 'information_request':
                 answer = self.get_answer_doc(q['question'])
                 if len(query_data['questions']) <= 1:
                     rd_fns.update_status("Final answer .... ", self.uid)
                     return answer
+                ans_chunks = list(answer)
                 messages.append({"role": "user", "content": q['question']})
-                messages.append({"role": "assistant", "content": "".join(list(answer))})
+                messages.append({"role": "assistant", 
+                                 "content": "".join([s['answer'] for s in ans_chunks])})
+                sources.append(ans_chunks[0]['sources'][0])
             elif q['type'] == 'aggregator':
                 rd_fns.update_status("Final answer .... ", self.uid)
                 messages.append({"role": "user", "content": q['question']})
-                return get_haiku_answer(messages)
+                # sources = list(set(sources))
+                for ans in get_haiku_answer(messages):
+                    yield {
+                        'answer': ans,
+                        'sources': sources
+                    }
 
-        return 'failed to get data'
+        yield 'failed to get data'
 
     def get_answer_doc(self, question):
         rd_fns.update_status("Analysing company info", self.uid)
@@ -114,7 +123,7 @@ class GPT:
         metadata = json.loads(minio_fns.get_object(document_folder+'/metadata.json'))
         return os.path.join("http://"+minio_fns.url, 'secreports', metadata['mainHTML'])
 
-    def get_answer(self, ticker: str, document_type: str, period: str, question:str) -> str:
+    def get_answer(self, ticker: str, document_type: str, period: str, question:str):
         """This function processes user questions. This should be triggered when user has other requirement apart from downloading file.
         If user asks to download and fetch details, this function should be called after downloading file.
         If user asks to fetch details without there is mention of downloading file, this function should be called directly.
@@ -125,7 +134,8 @@ class GPT:
             period: period of document required for this question. period should be quarterly notation or fiscal year notation. format examples: 2022Q1, 2022FY
         """
         db = DBFunctions()
-        company_id = db.get_company_id(ticker)
+        comp_info = db.get_company_info(ticker)
+        company_id = comp_info['id']
         document_info = db.get_table_data('documents', filter_dict={
             'companyid': company_id, 'ReportType': document_type.replace('-', ''), 
             'period': period})
@@ -144,7 +154,14 @@ class GPT:
         context = '\n'.join(relevant_docs)
         prompt = f"context:{context}, question:{question}"
         rd_fns.update_status("Getting final information from document", self.uid)
-        return get_haiku_answer(messages = [{"role": "user", "content": prompt}])
+        for ans in get_haiku_answer(messages = [{"role": "user", "content": prompt}]):
+            yield {
+                'answer': ans,
+                'sources': [{
+                    'name': comp_info['Name'] + ' ' + period + ' ' + document_type,
+                    'url': minio_fns.get_full_url(metadata['mainHTML'])
+                }]
+            }
 
 
 def get_company_info(question):

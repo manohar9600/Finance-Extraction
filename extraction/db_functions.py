@@ -167,6 +167,9 @@ class MinioDBFunctions:
             if exc.code == "NoSuchKey":
                 return False
 
+    def get_full_url(self, object_name):
+        return f"http://{self.url}/{self.bucket_name}/{object_name}"
+
 
 class VectorDBFunctions:
     

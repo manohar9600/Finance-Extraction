@@ -193,12 +193,15 @@ def process_sec_filing(filing_url, cik):
 
 
 if __name__ == '__main__':
-    process_sec_files('MSFT')
+    # process_sec_files('MSFT')
 
-    # # -- full run --
-    # tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
-    # pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
-    # for tic in tickers:
-    #     process_sec_files(tic)
-    #     pbar.update(1)
-    # pbar.close()
+    # -- full run --
+    tickers = db_fns.get_table_data('companies')['Symbol'].to_list()
+    pbar = pbar_manager.counter(total=len(tickers), desc="Companies:", leave=False)
+    for tic in tickers:
+        try:
+            process_sec_files(tic)
+        except:
+            pass
+        pbar.update(1)
+    pbar.close()

@@ -203,13 +203,13 @@ class GPTHandler(MainHandler):
     def post(self):
         logger.info("--- question received ---")
         data = json.loads(self.request.body)
-        self.set_header('Content-Type', 'text/event-stream')
+        self.set_header('Content-Type', 'application/json')
         self.set_header('Cache-Control', 'no-cache')
         gpt = GPT(data['uid'])
         answer = gpt.process_question(data['question'])
-        self.flush()
         for s in answer:
-            self.write(s)
+            self.write(json.dumps(s))
+            self.write('<sep>')
             self.flush()
         # self.finish()
         # self.write(answer)
