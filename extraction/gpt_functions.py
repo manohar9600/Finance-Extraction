@@ -25,10 +25,16 @@ haiku_llm = ChatAnthropicTools(
     model="claude-3-haiku-20240307") # anthropic fastest model.
 
 
+sonnet_llm = ChatAnthropicTools(
+    anthropic_api_key="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",
+    model="claude-3-sonnet-20240229") # anthropic mid model
+
+
 gpt4_llm = ChatOpenAI(
     openai_api_key="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",
-    model="gpt-4-0125-preview" # gpt-3.5-turbo-0125
+    model="gpt-4-turbo-2024-04-09" # gpt-3.5-turbo-0125
 )
+
 
 gpt3_llm = ChatOpenAI(
     openai_api_key="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",

@@ -31,6 +31,7 @@ class CustomOpenAIEmbeddings(OpenAIEmbeddings):
     def __call__(self, input):
         return self._embed_documents(input)    # <--- get the embeddings
 
+
 class GPT:
     def __init__(self, uid=None) -> None:
         self.uid = uid
@@ -39,7 +40,7 @@ class GPT:
         rd_fns.start_status(steps=150, uid=self.uid)
         rd_fns.update_status("Understanding the question", self.uid)
         class QuestionsJson(BaseModel):
-            questions: list = Field(description="Breakdown of the question into individual questions(field name should be 'question'). So that one single question can be asked to single document. Include type of question. It can be either 'information_request' or 'aggregator'. Aggregator questions should be last")
+            questions: list = Field(description="Breakdown of the question into individual questions, so that RAG can pick answers accurately. (field name should be 'question'). So that one single question can be asked to single document. Include type of question. It can be either 'information_request' or 'aggregator'. Aggregator questions should be last")
         
         parser = JsonOutputParser(pydantic_object=QuestionsJson)
         prompt = PromptTemplate(
@@ -47,7 +48,7 @@ class GPT:
             input_variables=["query"],
             partial_variables={"format_instructions": parser.get_format_instructions()},
         )
-        chain = prompt | haiku_llm | parser
+        chain = prompt | gpt4_llm | parser
         prompt = f"context: {question}, fill values required to in json."
         query_data = chain.invoke({"query": prompt})
         steps_count = 4*len([q for q in query_data['questions'] if q['type'] == 'information_request']) + 1
@@ -59,7 +60,9 @@ class GPT:
                 answer = self.get_answer_doc(q['question'])
                 if len(query_data['questions']) <= 1:
                     rd_fns.update_status("Final answer .... ", self.uid)
-                    return answer
+                    for ans in answer:
+                        yield ans
+                    break
                 ans_chunks = list(answer)
                 messages.append({"role": "user", "content": q['question']})
                 messages.append({"role": "assistant", 
@@ -74,8 +77,15 @@ class GPT:
                         'answer': ans,
                         'sources': sources
                     }
-
-        yield 'failed to get data'
+                break
+        else:
+            rd_fns.update_status("Final answer .... ", self.uid)
+            messages.append({"role": "user", "content": question})
+            for ans in get_haiku_answer(messages):
+                yield {
+                    'answer': ans,
+                    'sources': sources
+                }
 
     def get_answer_doc(self, question):
         rd_fns.update_status("Analysing company info", self.uid)
@@ -141,7 +151,7 @@ class GPT:
             'period': period})
 
         if document_info.empty:
-            return 'Requested data is not yet available. Please try again later.'
+            yield 'Requested data is not yet available. Please try again later.'
         
         document_folder = document_info.iloc[0]['folderlocation']
 
@@ -149,6 +159,7 @@ class GPT:
         metadata = json.loads(minio_fns.get_object(document_folder+'/metadata.json'))
         html = minio_fns.get_object(metadata['mainHTML'])
         rd_fns.update_status(f"Reading and Understanding the document. for period: {period} and company: {ticker}", self.uid)
+        logger.debug(f"Reading and Understanding the document. for period: {period} and company: {ticker}")
         pages = get_pages_text(html)
         relevant_docs = get_relevant_docs(pages, question, metadata['mainHTML'])
         context = '\n'.join(relevant_docs)
@@ -187,7 +198,7 @@ def get_company_info(question):
     company_info = db_conn.get_company_info(ticker)
     if not company_info:
         return None
-    logger.info(f"company: {company_info['Name']}")
+    logger.debug(f"company: {company_info['Name']}")
     company_info['docs'] = db_conn.get_table_data(
         "documents", filter_dict={"companyid": company_info['id']})
     return company_info
@@ -203,10 +214,10 @@ def get_relevant_docs(pages, question, html_path):
     collection_name = re.sub("[^a-zA-Z]", "", html_path)[-20:] + hash_list_of_strings(pages)[:40]
     vectorstore = Chroma(
         collection_name=collection_name,
-        # embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
-        embedding_function=CustomOpenAIEmbeddings(
-            model="text-embedding-3-large", 
-            openai_api_key="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"),
+        embedding_function=HuggingFaceEmbeddings(model_name="WhereIsAI/UAE-Large-V1"),
+        # embedding_function=CustomOpenAIEmbeddings(
+        #     model="text-embedding-3-large", 
+        #     openai_api_key="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"),
         persist_directory=os.path.expanduser("~/Data/vectorcache")
     )
     documents = [Document(page_content=s, metadata={'page':i+1}) for i, s in enumerate(pages)]
