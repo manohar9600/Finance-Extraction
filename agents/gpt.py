@@ -37,6 +37,65 @@ class GPT:
         self.uid = uid
     
     def process_question(self, question):
+        class QueryJson(BaseModel):
+            companies: list = Field(description="companies mentioned in this question. (field names should be 'companyName' and 'ticker)")
+            
+        parser = JsonOutputParser(pydantic_object=QueryJson)
+
+        prompt = PromptTemplate(
+            template="Answer the user query.\n{format_instructions}\n{query}\n",
+            input_variables=["query"],
+            partial_variables={"format_instructions": parser.get_format_instructions()},
+        )
+        chain = prompt | haiku_llm | parser
+        prompt = f"context: {question}, fill values required to in json"
+        query_data = chain.invoke({"query": prompt})
+
+        db_conn = DBFunctions()
+        documents_info = ''
+        for comp in query_data['companies']:
+            company_info = db_conn.get_company_info(comp['ticker'])
+            docs = db_conn.get_table_data(
+                "documents", filter_dict={"companyid": company_info['id']}).to_markdown()
+            documents_info += f"companyName: {comp['companyName']},\nticker: {comp['ticker']}\n,available documents:\n{docs}\n\n"
+
+        class QuestionsJson(BaseModel):
+            questions: list = Field(description="Convert this question into multiple questions. Each question should be for a single period of the company. Don't do questions which contains two or more companies and two or more periods. Don't go beyond available docs. (field names should be 'question' and 'ticker': ticker of the company and 'document_type': type of document required for this question, either 10K or 10Q or others, and 'period': period of document required for this question. period should be quarterly notation or fiscal year notation. format examples: 2022Q1, 2022FY).")
+
+        parser = JsonOutputParser(pydantic_object=QuestionsJson)
+        prompt = PromptTemplate(
+            template="Answer the user query.\n{format_instructions}\n{query}\n",
+            input_variables=["query"],
+            partial_variables={"format_instructions": parser.get_format_instructions()},
+        )
+        chain = prompt | haiku_llm | parser
+        prompt = f"{documents_info}\n\nquestion: {question}, fill values required to in json."
+        query_data = chain.invoke({"query": prompt})
+
+        messages = []
+        sources = []
+        for q in query_data['questions']:
+            answer = self.get_answer(**q)
+            if len(query_data['questions']) <= 1:
+                rd_fns.update_status("Final answer .... ", self.uid)
+                for ans in answer:
+                    yield ans
+                break
+            ans_chunks = list(answer)
+            messages.append({"role": "user", "content": q['question']})
+            messages.append({"role": "assistant", 
+                            "content": "".join([s['answer'] for s in ans_chunks])})
+            sources.append(ans_chunks[0]['sources'][0])
+        else:
+            rd_fns.update_status("Final answer .... ", self.uid)
+            messages.append({"role": "user", "content": question})
+            for ans in get_haiku_answer(messages):
+                yield {
+                    'answer': ans,
+                    'sources': sources
+                }
+
+    def process_question_old(self, question):
         rd_fns.start_status(steps=150, uid=self.uid)
         rd_fns.update_status("Understanding the question", self.uid)
         class QuestionsJson(BaseModel):
@@ -151,7 +210,7 @@ class GPT:
             'period': period})
 
         if document_info.empty:
-            yield 'Requested data is not yet available. Please try again later.'
+            raise Exception(f'Requested data is not yet available. Please try again later. for company: {ticker} and period: {period} and document type: {document_type}')
         
         document_folder = document_info.iloc[0]['folderlocation']
 
